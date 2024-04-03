@@ -1,3 +1,26 @@
 <resources>
     <string name="app_name">MyMusic</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="home">Home</string>
+    <string name="search">Search</string>
+    <string name="library">Library</string>
+    <string name="recently">Recently</string>
+    <string name="settings">Settings</string>
+    <string name="welcome_back">Welcome back,</string>
+    <string name="let_s_start_with_a_radio">LET\'S START WITH A RADIO</string>
+    <string name="quick_picks">Quick picks</string>
+    <string name="your_music_is_always_up_to_date">YOUR MUSIC IS ALWAYS UP-TO-DATE</string>
+    <string name="let_s_pick_a_playlist_for_you">LET\'S PICK A PLAYLIST FOR YOU</string>
+    <string name="moods_amp_moment"><![CDATA[Moods & Moment]]></string>
+    <string name="genre">Genre</string>
+    <string name="what_is_best_choice_today">WHAT IS BEST CHOICE TODAY</string>
+    <string name="chart">Chart</string>
+    <string name="global">Global</string>
+    <string name="top_tracks">Top tracks</string>
+    <string name="top_artists">Top artists</string>
+    <string name="sleep_timer_off">Sleep Timer</string>
+    <string name="good_night">Good Night</string>
+    <string name="yes">Yes</string>
+    <string name="notification_channel_name" translatable="false">SimpMusic Playback Notification</string>
 </resources>

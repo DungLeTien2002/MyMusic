@@ -2,4 +2,6 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="md_theme_dark_background">#0B0A0A</color>
+    <color name="shimmerBackground">#7E878383</color>
 </resources>
