@@ -3,6 +3,7 @@ package com.example.mymusic.base.service
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Binder
 import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -91,6 +92,11 @@ class SimpleMediaService : MediaLibraryService() {
             .setRenderersFactory(provideRendererFactory(this))
             .build()
         mediaSession = provideMediaLibrarySession(this, this, player, simpleMediaSessionCallback)
+    }
+
+    inner class MusicBinder : Binder() {
+        val service: SimpleMediaService
+            get() = this@SimpleMediaService
     }
 
     fun provideAudioAttributes(): AudioAttributes =

@@ -4,10 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import com.example.mymusic.base.data.dataStore.DataStoreManager
+import com.example.mymusic.base.data.repository.MainRepository
 import com.example.mymusic.base.service.SimpleMediaServiceHandler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import javax.inject.Inject
 
 class SharedViewModel(private val application: Application) : AndroidViewModel(application) {
     private val _recreateActivity: MutableLiveData<Boolean> = MutableLiveData()
@@ -25,6 +28,16 @@ class SharedViewModel(private val application: Application) : AndroidViewModel(a
 
     fun activityRecreateDone(){
         _recreateActivity.value=false
+    }
+    val isServiceRunning = MutableLiveData<Boolean>(false)
+    @Inject
+    lateinit var dataStoreManager: DataStoreManager
+
+    @Inject
+    lateinit var mainRepository: MainRepository
+
+    fun init(){
+
     }
 
 }

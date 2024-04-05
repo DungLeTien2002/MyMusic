@@ -5,7 +5,7 @@ import android.util.Log
 import com.example.mymusic.base.Youtube
 import com.example.mymusic.base.common.VIDEO_QUALITY
 import com.example.mymusic.base.data.dataStore.DataStoreManager
-import com.example.mymusic.base.data.db.entities.LocalDataSource
+import com.example.mymusic.base.data.db.LocalDataSource
 import com.example.mymusic.base.data.db.entities.NewFormatEntity
 import com.example.mymusic.base.models.MediaType
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,7 +17,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class MainRepository @Inject constructor(
     private val localDataSource: LocalDataSource,
     private val dataStoreManager: DataStoreManager,

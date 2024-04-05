@@ -4,15 +4,14 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     kotlin("plugin.serialization")
+    kotlin("kapt")
 }
 
 android {
     namespace = "com.example.mymusic"
     compileSdk = 34
 
-    ksp {
-        arg("room.schemaLocation", "$projectDir/schemas")
-    }
+
 
     defaultConfig {
         applicationId = "com.example.mymusic"
@@ -23,9 +22,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        ksp {
-            arg("room.schemaLocation", "$projectDir/schemas")
-        }
+//        ksp {
+//            arg("room.schemaLocation", "$projectDir/schemas")
+//        }
     }
 
     buildTypes {
@@ -123,4 +122,12 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+
+    //Custom Activity On Crash
+    implementation ("cat.ereza:customactivityoncrash:2.4.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+}
+
+hilt {
+    enableAggregatingTask = true
 }

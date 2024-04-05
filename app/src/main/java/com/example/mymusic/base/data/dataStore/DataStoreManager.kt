@@ -2,6 +2,7 @@ package com.example.mymusic.base.data.dataStore
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,6 +21,7 @@ class DataStoreManager @Inject constructor(private val settingsDataStore: DataSt
         const val TRUE = "TRUE"
         const val FALSE = "FALSE"
         val VIDEO_QUALITY = stringPreferencesKey("video_quality")
+        val MAX_SONG_CACHE_SIZE = intPreferencesKey("maxSongCacheSize")
     }
 
     val watchVideoInsteadOfPlayingAudio = settingsDataStore.data.map { preferences ->
@@ -28,6 +30,9 @@ class DataStoreManager @Inject constructor(private val settingsDataStore: DataSt
 
     val videoQuality = settingsDataStore.data.map { preferences ->
         preferences[VIDEO_QUALITY] ?: "720p"
+    }
+    val maxSongCacheSize = settingsDataStore.data.map { preferences ->
+        preferences[MAX_SONG_CACHE_SIZE] ?: -1
     }
 }
 
