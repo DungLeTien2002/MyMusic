@@ -2,14 +2,20 @@ package com.example.mymusic.base.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.mymusic.base.Youtube
+import com.example.mymusic.base.common.VIDEO_QUALITY
 import com.example.mymusic.base.data.dataStore.DataStoreManager
 import com.example.mymusic.base.data.db.entities.LocalDataSource
+import com.example.mymusic.base.data.db.entities.NewFormatEntity
+import com.example.mymusic.base.models.MediaType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class MainRepository @Inject constructor(
@@ -17,8 +23,11 @@ class MainRepository @Inject constructor(
     private val dataStoreManager: DataStoreManager,
     @ApplicationContext private val context: Context
 ) {
+    suspend fun insertNewFormat(newFormat: NewFormatEntity) =
+        withContext(Dispatchers.IO) { localDataSource.insertNewFormat(newFormat) }
+
     suspend fun getStream(videoId: String, itag: Int): Flow<String?> = flow {
-        YouTube.player(videoId).onSuccess { data ->
+        Youtube.player(videoId).onSuccess { data ->
             val acceptToPlayVideo =
                 runBlocking { dataStoreManager.watchVideoInsteadOfPlayingAudio.first() == DataStoreManager.TRUE }
             val videoItag =
