@@ -92,4 +92,5 @@ object LocalServiceModule {
     fun provideDatastoreManager(settingsDataStore: DataStore<Preferences>): DataStoreManager = DataStoreManager(
         settingsDataStore
     )
+
 }

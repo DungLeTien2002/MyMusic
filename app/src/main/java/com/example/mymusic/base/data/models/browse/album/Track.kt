@@ -4,7 +4,6 @@ package com.example.mymusic.base.data.models.browse.album
 import com.example.mymusic.base.data.models.searchResult.songs.Album
 import com.example.mymusic.base.data.models.searchResult.songs.Artist
 import com.example.mymusic.base.data.models.searchResult.songs.FeedbackTokens
-import com.example.mymusic.base.models.Thumbnail
 import com.google.gson.annotations.SerializedName
 
 data class Track(
@@ -23,7 +22,7 @@ data class Track(
     @SerializedName("likeStatus")
     val likeStatus: String?,
     @SerializedName("thumbnails")
-    val thumbnails: List<Thumbnail>?,
+    val thumbnails: List<com.example.mymusic.base.models.searchResult.song.Thumbnail>,
     @SerializedName("title")
     val title: String,
     @SerializedName("videoId")

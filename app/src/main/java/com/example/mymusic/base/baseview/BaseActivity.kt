@@ -3,10 +3,13 @@ package com.example.mymusic.base.baseview
 import android.os.Bundle
 import android.view.LayoutInflater
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.util.UnstableApi
 import androidx.viewbinding.ViewBinding
 import com.example.mymusic.base.utils.extension.finishWithSlide
 import com.example.mymusic.base.utils.extension.handleBackPressed
+import dagger.hilt.android.AndroidEntryPoint
 
+@UnstableApi
 abstract class BaseActivity<VB : ViewBinding> : AppCompatActivity() {
     //region variable
     lateinit var binding: VB

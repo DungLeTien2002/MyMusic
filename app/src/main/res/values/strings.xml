@@ -23,4 +23,13 @@
     <string name="good_night">Good Night</string>
     <string name="yes">Yes</string>
     <string name="notification_channel_name" translatable="false">SimpMusic Playback Notification</string>
+    <string name="view_count">%1$s views</string>
+    <string name="song">Song</string>
+    <string name="new_release">New release</string>
+    <string name="music_video">Music video</string>
+    <string name="update_available">New update available</string>
+    <string name="update_message">"Version %1$s available\nRelease: %2$s\nChange logs:\n%3$s "</string>
+    <string name="download">Download</string>
+    <string name="cancel">Cancel</string>
+    <string name="version_name" translatable="false">v0.2.0</string>
 </resources>
