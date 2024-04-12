@@ -6,24 +6,35 @@ import com.example.mymusic.base.Youtube
 import com.example.mymusic.base.common.VIDEO_QUALITY
 import com.example.mymusic.base.data.dataStore.DataStoreManager
 import com.example.mymusic.base.data.db.LocalDataSource
+import com.example.mymusic.base.data.db.entities.LocalPlaylistEntity
 import com.example.mymusic.base.data.db.entities.LyricsEntity
 import com.example.mymusic.base.data.db.entities.NewFormatEntity
+import com.example.mymusic.base.data.db.entities.PairSongLocalPlaylist
 import com.example.mymusic.base.data.db.entities.QueueEntity
+import com.example.mymusic.base.data.db.entities.SetVideoIdEntity
 import com.example.mymusic.base.data.db.entities.SongEntity
 import com.example.mymusic.base.data.db.entities.SongInfoEntity
 import com.example.mymusic.base.data.models.browse.album.Track
+import com.example.mymusic.base.data.models.home.HomeItem
+import com.example.mymusic.base.data.models.home.chart.Chart
 import com.example.mymusic.base.data.models.metadata.Lyrics
 import com.example.mymusic.base.data.models.musixmatch.MusixmatchTranslationLyricsResponse
 import com.example.mymusic.base.data.models.musixmatch.SearchMusixmatchResponse
+import com.example.mymusic.base.data.parser.parseChart
+import com.example.mymusic.base.data.parser.parseNewRelease
 import com.example.mymusic.base.data.queue.Queue
 import com.example.mymusic.base.models.MediaType
 import com.example.mymusic.base.models.SongItem
 import com.example.mymusic.base.models.WatchEndpoint
 import com.example.mymusic.base.models.myMusic.GithubResponse
+import com.example.mymusic.base.parser.parseMixedContent
 import com.example.mymusic.base.utils.Resource
 import com.example.mymusic.base.utils.extension.bestMatchingIndex
 import com.example.mymusic.base.utils.extension.toListTrack
 import com.example.mymusic.base.utils.extension.toLyrics
+import com.maxrave.simpmusic.data.model.explore.mood.Genre
+import com.example.mymusic.base.data.models.explore.mood.Mood
+import com.example.mymusic.base.data.models.explore.mood.MoodsMoment
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -53,9 +64,220 @@ class MainRepository @Inject constructor(
         withContext(Dispatchers.IO) { localDataSource.deleteQueue() }
     }
 
+    suspend fun updateLocalPlaylistYouTubePlaylistSyncState(id: Long, syncState: Int) =
+        withContext(Dispatchers.IO) {
+            localDataSource.updateLocalPlaylistYouTubePlaylistSyncState(id, syncState)
+        }
+
+    suspend fun addYouTubePlaylistItem(youtubePlaylistId: String, videoId: String) = flow {
+        runCatching {
+            Youtube.addPlaylistItem(youtubePlaylistId, videoId).onSuccess {
+                if (it.playlistEditResults.isNotEmpty()) {
+                    for (playlistEditResult in it.playlistEditResults) {
+                        insertSetVideoId(SetVideoIdEntity(playlistEditResult.playlistEditVideoAddedResultData.videoId, playlistEditResult.playlistEditVideoAddedResultData.setVideoId))
+                    }
+                    emit(it.status)
+                }
+                else {
+                    emit("FAILED")
+                }
+            }.onFailure {
+                emit("FAILED")
+            }
+        }
+    }
+
+    suspend fun insertPairSongLocalPlaylist(pairSongLocalPlaylist: PairSongLocalPlaylist) = withContext(Dispatchers.IO) {
+        localDataSource.insertPairSongLocalPlaylist(pairSongLocalPlaylist)
+    }
+
+    suspend fun insertSetVideoId(setVideoId: SetVideoIdEntity) =
+        withContext(Dispatchers.IO) { localDataSource.insertSetVideoId(setVideoId) }
+
+    suspend fun getSongsByListVideoId(listVideoId: List<String>): Flow<List<SongEntity>> =
+        flow { emit(localDataSource.getSongByListVideoId(listVideoId)) }.flowOn(Dispatchers.IO)
+
+    suspend fun updateLocalPlaylistTracks(tracks: List<String>, id: Long) =
+        withContext(Dispatchers.IO) { localDataSource.updateLocalPlaylistTracks(tracks, id) }
+
+    suspend fun getChartData(countryCode: String = "KR"): Flow<Resource<Chart>> = flow {
+        runCatching {
+            Youtube.customQuery("FEmusic_charts", country = countryCode).onSuccess { result ->
+                val data =
+                    result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer
+                val chart = parseChart(data)
+                if (chart != null) {
+                    emit(Resource.Success<Chart>(chart))
+                } else {
+                    emit(Resource.Error<Chart>("Error"))
+                }
+            }.onFailure { error ->
+                emit(Resource.Error<Chart>(error.message.toString()))
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getNewRelease(): Flow<Resource<ArrayList<HomeItem>>> = flow {
+        Youtube.newRelease().onSuccess { result ->
+            emit(Resource.Success<ArrayList<HomeItem>>(parseNewRelease(result, context)))
+        }.onFailure { error ->
+            emit(Resource.Error<ArrayList<HomeItem>>(error.message.toString()))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getAllLocalPlaylists(): Flow<List<LocalPlaylistEntity>> =
+        flow { emit(localDataSource.getAllLocalPlaylists()) }.flowOn(Dispatchers.IO)
+
+    suspend fun getMoodAndMomentsData(): Flow<Resource<Mood>> = flow {
+        runCatching {
+            Youtube.moodAndGenres().onSuccess { result ->
+                val listMoodMoments: ArrayList<MoodsMoment> = arrayListOf()
+                val listGenre: ArrayList<Genre> = arrayListOf()
+                result[0].let { moodsmoment ->
+                    for (item in moodsmoment.items) {
+                        listMoodMoments.add(
+                            MoodsMoment(
+                                params = item.endpoint.params ?: "",
+                                title = item.title
+                            )
+                        )
+                    }
+                }
+                result[1].let { genres ->
+                    for (item in genres.items) {
+                        listGenre.add(
+                            Genre(
+                                params = item.endpoint.params ?: "",
+                                title = item.title
+                            )
+                        )
+                    }
+                }
+                emit(Resource.Success<Mood>(Mood(listGenre, listMoodMoments)))
+
+            }.onFailure { e ->
+                emit(Resource.Error<Mood>(e.message.toString()))
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getHomeData(): Flow<Resource<ArrayList<HomeItem>>> = flow {
+        runCatching {
+            val limit = dataStoreManager.homeLimit.first()
+            Youtube.customQuery(browseId = "FEmusic_home").onSuccess { result ->
+                val list: ArrayList<HomeItem> = arrayListOf()
+                if (result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(
+                        0
+                    )?.musicCarouselShelfRenderer?.header?.musicCarouselShelfBasicHeaderRenderer?.strapline?.runs?.get(
+                        0
+                    )?.text != null
+                ) {
+                    val accountName =
+                        result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(
+                            0
+                        )?.musicCarouselShelfRenderer?.header?.musicCarouselShelfBasicHeaderRenderer?.strapline?.runs?.get(
+                            0
+                        )?.text ?: ""
+                    val accountThumbUrl =
+                        result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(
+                            0
+                        )?.musicCarouselShelfRenderer?.header?.musicCarouselShelfBasicHeaderRenderer?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.get(
+                            0
+                        )?.url?.replace("s88", "s352") ?: ""
+                    if (accountName != "" && accountThumbUrl != "") {
+                        dataStoreManager.putString("AccountName", accountName)
+                        dataStoreManager.putString("AccountThumbUrl", accountThumbUrl)
+                    }
+                }
+                var continueParam =
+                    result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.continuations?.get(
+                        0
+                    )?.nextContinuationData?.continuation
+                val data =
+                    result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents
+                list.addAll(parseMixedContent(data, context))
+                var count = 0
+                while (count < limit && continueParam != null) {
+                    Youtube.customQuery(browseId = "", continuation = continueParam)
+                        .onSuccess { response ->
+                            continueParam =
+                                response.continuationContents?.sectionListContinuation?.continuations?.get(
+                                    0
+                                )?.nextContinuationData?.continuation
+                            Log.d("Repository", "continueParam: $continueParam")
+                            val dataContinue =
+                                response.continuationContents?.sectionListContinuation?.contents
+                            list.addAll(parseMixedContent(dataContinue, context))
+                            count++
+                            Log.d("Repository", "count: $count")
+                        }.onFailure {
+                            Log.e("Repository", "Error: ${it.message}")
+                            count++
+                        }
+                }
+                Log.d("Repository", "List size: ${list.size}")
+                emit(Resource.Success<ArrayList<HomeItem>>(list))
+            }.onFailure { error ->
+                emit(Resource.Error<ArrayList<HomeItem>>(error.message.toString()))
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun updateDownloadState(videoId: String, downloadState: Int) =
+        withContext(Dispatchers.Main) {
+            localDataSource.updateDownloadState(
+                downloadState,
+                videoId
+            )
+        }
+
+    suspend fun updateLikeStatus(videoId: String, likeStatus: Int) =
+        withContext(Dispatchers.Main) { localDataSource.updateLiked(likeStatus, videoId) }
+
+    suspend fun recoverQueue(temp: List<Track>) {
+        val queueEntity = QueueEntity(listTrack = temp)
+        withContext(Dispatchers.IO) { localDataSource.recoverQueue(queueEntity) }
+    }
+
+    suspend fun updatePlaylistDownloadState(playlistId: String, downloadState: Int) =
+        withContext(Dispatchers.Main) {
+            localDataSource.updatePlaylistDownloadState(
+                downloadState,
+                playlistId
+            )
+        }
+
+    suspend fun updateLocalPlaylistDownloadState(downloadState: Int, id: Long) =
+        withContext(Dispatchers.IO) {
+            localDataSource.updateLocalPlaylistDownloadState(
+                downloadState,
+                id
+            )
+        }
+
+    suspend fun getAllDownloadedPlaylist(): Flow<List<Any>> =
+        flow { emit(localDataSource.getAllDownloadedPlaylist()) }.flowOn(Dispatchers.IO)
+
+    suspend fun getDownloadingSongs(): Flow<List<SongEntity>?> =
+        flow { emit(localDataSource.getDownloadingSongs()) }.flowOn(Dispatchers.IO)
+
+    suspend fun getPreparingSongs(): Flow<List<SongEntity>> =
+        flow { emit(localDataSource.getPreparingSongs()) }.flowOn(Dispatchers.IO)
+
+    suspend fun updateAlbumDownloadState(albumId: String, downloadState: Int) =
+        withContext(Dispatchers.Main) {
+            localDataSource.updateAlbumDownloadState(
+                downloadState,
+                albumId
+            )
+        }
+
     suspend fun insertSongInfo(songInfo: SongInfoEntity) = withContext(Dispatchers.IO) {
         localDataSource.insertSongInfo(songInfo)
     }
+
+    suspend fun getDownloadedSongs(): Flow<List<SongEntity>?> =
+        flow { emit(localDataSource.getDownloadedSongs()) }.flowOn(Dispatchers.IO)
 
     fun checkForUpdate(): Flow<GithubResponse?> = flow {
         Youtube.checkForUpdate().onSuccess {

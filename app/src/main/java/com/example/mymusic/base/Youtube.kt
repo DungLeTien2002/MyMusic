@@ -6,19 +6,28 @@ import com.example.mymusic.base.data.models.musixmatch.MusixmatchTranslationLyri
 import com.example.mymusic.base.data.models.musixmatch.SearchMusixmatchResponse
 import com.example.mymusic.base.data.models.musixmatch.UserTokenResponse
 import com.example.mymusic.base.models.MediaType
+import com.example.mymusic.base.models.PlaylistItem
 import com.example.mymusic.base.models.ReturnYouTubeDislikeResponse
 import com.example.mymusic.base.models.SongInfo
+import com.example.mymusic.base.models.VideoItem
 import com.example.mymusic.base.models.WatchEndpoint
 import com.example.mymusic.base.models.YouTubeClient.Companion.ANDROID_MUSIC
 import com.example.mymusic.base.models.YouTubeClient.Companion.WEB
 import com.example.mymusic.base.models.YouTubeClient.Companion.WEB_REMIX
+import com.example.mymusic.base.models.YouTubeLocale
 import com.example.mymusic.base.models.getContinuation
 import com.example.mymusic.base.models.myMusic.GithubResponse
+import com.example.mymusic.base.models.response.AddItemYouTubePlaylistResponse
+import com.example.mymusic.base.models.response.BrowseResponse
 import com.example.mymusic.base.models.response.NextResponse
 import com.example.mymusic.base.models.response.PipedResponse
 import com.example.mymusic.base.models.response.PlayerResponse
+import com.example.mymusic.base.pages.ArtistPage
+import com.example.mymusic.base.pages.ExplorePage
+import com.example.mymusic.base.pages.MoodAndGenres
 import com.example.mymusic.base.pages.NextPage
 import com.example.mymusic.base.pages.NextResult
+import com.example.mymusic.base.pages.RelatedPage
 import com.maxrave.kotlinytmusicscraper.parser.parseMusixmatchLyrics
 import com.maxrave.kotlinytmusicscraper.parser.parseUnsyncedLyrics
 import io.ktor.client.call.body
@@ -34,6 +43,17 @@ object Youtube {
         get() = ytMusic.musixMatchCookie
         set(value) {
             ytMusic.musixMatchCookie = value
+        }
+    var cookie: String?
+        get() = ytMusic.cookie
+        set(value) {
+            ytMusic.cookie = value
+        }
+
+    var locale: YouTubeLocale
+        get() = ytMusic.locale
+        set(value) {
+            ytMusic.locale = value
         }
 
     suspend fun player(
@@ -77,6 +97,37 @@ object Youtube {
                 ), thumbnails
             )
         }
+    }
+
+    suspend fun newRelease(): Result<ExplorePage> = runCatching {
+        val response =
+            ytMusic.browse(WEB_REMIX, browseId = "FEmusic_new_releases").body<BrowseResponse>()
+        println(response)
+        ExplorePage(
+            released = response.contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()?.gridRenderer?.items
+                ?.mapNotNull { it.musicTwoRowItemRenderer }
+                ?.mapNotNull(RelatedPage::fromMusicTwoRowItemRenderer)
+                .orEmpty() as List<PlaylistItem>,
+            musicVideo = response.contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.lastOrNull()?.musicCarouselShelfRenderer?.contents?.mapNotNull { it.musicTwoRowItemRenderer }
+                ?.mapNotNull(
+                    ArtistPage::fromMusicTwoRowItemRenderer
+                ).orEmpty() as List<VideoItem>
+
+        )
+    }
+
+    suspend fun addPlaylistItem(playlistId: String, videoId: String) = runCatching {
+        ytMusic.addItemYouTubePlaylist(playlistId, videoId).body<AddItemYouTubePlaylistResponse>()
+    }
+
+    suspend fun customQuery(browseId: String, params: String? = null, continuation: String? = null, country: String? = null, setLogin: Boolean = true) = runCatching {
+        ytMusic.browse(WEB_REMIX, browseId, params, continuation, country, setLogin).body<BrowseResponse>()
+    }
+
+    suspend fun moodAndGenres(): Result<List<MoodAndGenres>> = runCatching {
+        val response = ytMusic.browse(WEB_REMIX, browseId = "FEmusic_moods_and_genres").body<BrowseResponse>()
+        response.contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents!!
+            .mapNotNull(MoodAndGenres.Companion::fromSectionListRendererContent)
     }
 
     fun getMusixmatchCookie() = musixMatchCookie

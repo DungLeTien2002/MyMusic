@@ -1,6 +1,8 @@
 package com.example.mymusic.base.common
 
-object Config{
+import com.example.mymusic.R
+
+object Config {
     const val RECOVER_TRACK_QUEUE = "RECOVER_TRACK_QUEUE"
     const val SONG_CLICK = "SONG_CLICK"
     const val SELECTED_LANGUAGE = "selected_language"
@@ -8,7 +10,39 @@ object Config{
     const val SHARE = "SHARE"
     const val PLAYLIST_CLICK = "PLAYLIST_CLICK"
     const val ALBUM_CLICK = "ALBUM_CLICK"
+    const val MINIPLAYER_CLICK = "MINIPLAYER_CLICK"
 }
+
+object SPONSOR_BLOCK {
+    val list: Array<CharSequence> = arrayOf(
+        "sponsor",
+        "selfpromo",
+        "interaction",
+        "intro",
+        "outro",
+        "preview",
+        "music_offtopic",
+        "poi_highlight",
+        "filler"
+    )
+    val listName: Array<Int> = arrayOf(
+        R.string.sponsor,
+        R.string.self_promotion,
+        R.string.interaction,
+        R.string.intro,
+        R.string.outro,
+        R.string.preview,
+        R.string.music_off_topic,
+        R.string.poi_highlight,
+        R.string.filler
+    )
+}
+
+object MEDIA_CUSTOM_COMMAND {
+    const val LIKE = "like"
+    const val REPEAT = "repeat"
+}
+
 object SUPPORTED_LANGUAGE {
     val items: Array<CharSequence> = arrayOf(
         "English",
@@ -58,11 +92,128 @@ object VIDEO_QUALITY {
     val itags: Array<Int> = arrayOf(22, 18)
 }
 
+object SUPPORTED_LOCATION {
+    val items: Array<CharSequence> = arrayOf(
+        "AE",
+        "AR",
+        "AT",
+        "AU",
+        "AZ",
+        "BA",
+        "BD",
+        "BE",
+        "BG",
+        "BH",
+        "BO",
+        "BR",
+        "BY",
+        "CA",
+        "CH",
+        "CL",
+        "CO",
+        "CR",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "DO",
+        "DZ",
+        "EC",
+        "EE",
+        "EG",
+        "ES",
+        "FI",
+        "FR",
+        "GB",
+        "GE",
+        "GH",
+        "GR",
+        "GT",
+        "HK",
+        "HN",
+        "HR",
+        "HU",
+        "ID",
+        "IE",
+        "IL",
+        "IN",
+        "IQ",
+        "IS",
+        "IT",
+        "JM",
+        "JO",
+        "JP",
+        "KE",
+        "KH",
+        "KR",
+        "KW",
+        "KZ",
+        "LA",
+        "LB",
+        "LI",
+        "LK",
+        "LT",
+        "LU",
+        "LV",
+        "LY",
+        "MA",
+        "ME",
+        "MK",
+        "MT",
+        "MX",
+        "MY",
+        "NG",
+        "NI",
+        "NL",
+        "NO",
+        "NP",
+        "NZ",
+        "OM",
+        "PA",
+        "PE",
+        "PG",
+        "PH",
+        "PK",
+        "PL",
+        "PR",
+        "PT",
+        "PY",
+        "QA",
+        "RO",
+        "RS",
+        "RU",
+        "SA",
+        "SE",
+        "SG",
+        "SI",
+        "SK",
+        "SN",
+        "SV",
+        "TH",
+        "TN",
+        "TR",
+        "TW",
+        "TZ",
+        "UA",
+        "UG",
+        "US",
+        "UY",
+        "VE",
+        "VN",
+        "YE",
+        "ZA",
+        "ZW"
+    )
+}
+
 object DownloadState {
     const val STATE_NOT_DOWNLOADED = 0
     const val STATE_PREPARING = 1
     const val STATE_DOWNLOADING = 2
     const val STATE_DOWNLOADED = 3
 }
+
 const val DB_NAME = "Music Database"
+const val FIRST_TIME_MIGRATION = "first_time_migration"
+const val STATUS_DONE = "status_done"
 

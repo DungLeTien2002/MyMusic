@@ -1,8 +1,10 @@
 package com.example.mymusic.base.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
@@ -13,9 +15,12 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.SimpleCache
+import com.example.mymusic.R
+import com.example.mymusic.base.Youtube
 import com.example.mymusic.base.common.Config.ALBUM_CLICK
 import com.example.mymusic.base.common.Config.PLAYLIST_CLICK
 import com.example.mymusic.base.common.Config.RECOVER_TRACK_QUEUE
+import com.example.mymusic.base.common.Config.SELECTED_LANGUAGE
 import com.example.mymusic.base.common.Config.SHARE
 import com.example.mymusic.base.common.Config.SONG_CLICK
 import com.example.mymusic.base.common.Config.VIDEO_CLICK
@@ -23,7 +28,10 @@ import com.example.mymusic.base.common.DownloadState
 import com.example.mymusic.base.data.dataStore.DataStoreManager
 import com.example.mymusic.base.data.dataStore.DataStoreManager.Settings.RESTORE_LAST_PLAYED_TRACK_AND_QUEUE_DONE
 import com.example.mymusic.base.data.dataStore.DataStoreManager.Settings.TRUE
+import com.example.mymusic.base.data.db.entities.AlbumEntity
+import com.example.mymusic.base.data.db.entities.LocalPlaylistEntity
 import com.example.mymusic.base.data.db.entities.LyricsEntity
+import com.example.mymusic.base.data.db.entities.PlaylistEntity
 import com.example.mymusic.base.data.db.entities.SongEntity
 import com.example.mymusic.base.data.models.browse.album.Track
 import com.example.mymusic.base.data.models.metadata.Line
@@ -32,6 +40,7 @@ import com.example.mymusic.base.data.queue.Queue
 import com.example.mymusic.base.data.repository.MainRepository
 import com.example.mymusic.base.di.DownloadCache
 import com.example.mymusic.base.models.myMusic.GithubResponse
+import com.example.mymusic.base.service.PlayerEvent
 import com.example.mymusic.base.service.SimpleMediaServiceHandler
 import com.example.mymusic.base.utils.Resource
 import com.example.mymusic.base.utils.extension.connectArtists
@@ -40,11 +49,13 @@ import com.example.mymusic.base.utils.extension.toLyrics
 import com.example.mymusic.base.utils.extension.toLyricsEntity
 import com.example.mymusic.base.utils.extension.toSongEntity
 import com.example.mymusic.base.utils.extension.toTrack
+import com.maxrave.kotlinytmusicscraper.models.sponsorblock.SkipSegments
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -58,9 +69,18 @@ class SharedViewModel @Inject constructor(
     @DownloadCache private val downloadedCache: SimpleCache,
     private val application: Application
 ) : AndroidViewModel(application) {
-    private val _recreateActivity: MutableLiveData<Boolean> = MutableLiveData()
+
+    private var _recreateActivity: MutableLiveData<Boolean> = MutableLiveData()
+    val recreateActivity: LiveData<Boolean> = _recreateActivity
+
+    private var _homeRefresh: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    val homeRefresh: StateFlow<Boolean> = _homeRefresh.asStateFlow()
+
     var recentPosition: String = 0L.toString()
     val recreatedActivity: LiveData<Boolean> = _recreateActivity
+
+    private var regionCode: String? = null
+    private var language: String? = null
 
     private var _progressString: MutableStateFlow<String> = MutableStateFlow("00:00")
     val progressString: SharedFlow<String> = _progressString.asSharedFlow()
@@ -73,6 +93,9 @@ class SharedViewModel @Inject constructor(
     private val _progress = MutableStateFlow<Float>(0F)
     val progress: SharedFlow<Float> = _progress.asSharedFlow()
 
+    private var _skipSegments: MutableStateFlow<List<SkipSegments>?> = MutableStateFlow(null)
+    val skipSegments: StateFlow<List<SkipSegments>?> = _skipSegments
+
     var isPlaying = MutableStateFlow<Boolean>(false)
 
     private var _githubResponse = MutableLiveData<GithubResponse?>()
@@ -80,6 +103,8 @@ class SharedViewModel @Inject constructor(
 
     private val _liked: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val liked = _liked.asSharedFlow()
+
+    var videoId = MutableLiveData<String>()
 
     private var _saveLastPlayedSong: MutableLiveData<Boolean> = MutableLiveData()
     val saveLastPlayedSong: LiveData<Boolean> = _saveLastPlayedSong
@@ -91,6 +116,40 @@ class SharedViewModel @Inject constructor(
 
     fun activityRecreateDone() {
         _recreateActivity.value = false
+    }
+
+    fun homeRefreshDone() {
+        _homeRefresh.value = false
+    }
+
+    protected val context
+        get() = getApplication<Application>()
+
+    fun addToQueue(track: Track) {
+        viewModelScope.launch {
+            simpleMediaServiceHandler?.loadMoreCatalog(arrayListOf(track))
+            Toast.makeText(context, context.getString(R.string.added_to_queue), Toast.LENGTH_SHORT)
+                .show()
+        }
+    }
+
+    fun playNext(song: Track) {
+        viewModelScope.launch {
+            simpleMediaServiceHandler?.playNext(song)
+            Toast.makeText(context, context.getString(R.string.play_next), Toast.LENGTH_SHORT)
+                .show()
+        }
+    }
+
+    fun refreshSongDB() {
+        viewModelScope.launch {
+            mainRepository.getSongById(videoId.value!!).collect { songEntity ->
+                _songDB.value = songEntity
+                if (songEntity != null) {
+                    _liked.value = songEntity.liked
+                }
+            }
+        }
     }
 
     val isServiceRunning = MutableLiveData<Boolean>(false)
@@ -106,6 +165,8 @@ class SharedViewModel @Inject constructor(
     private var _nowPlayingMediaItem = MutableLiveData<MediaItem?>()
     val nowPlayingMediaItem: LiveData<MediaItem?> = _nowPlayingMediaItem
     var _lyrics = MutableStateFlow<Resource<Lyrics>?>(null)
+
+    val intent: MutableStateFlow<Intent?> = MutableStateFlow(null)
 
     //    val lyrics: LiveData<Resource<Lyrics>> = _lyrics
     private var lyricsFormat: MutableLiveData<ArrayList<Line>> = MutableLiveData()
@@ -126,6 +187,172 @@ class SharedViewModel @Inject constructor(
         return simpleMediaServiceHandler?.getCurrentMediaItem()
     }
 
+    fun changeAllDownloadingToError() {
+        viewModelScope.launch {
+            mainRepository.getDownloadingSongs().collect { songs ->
+                songs?.forEach { song ->
+                    mainRepository.updateDownloadState(
+                        song.videoId,
+                        DownloadState.STATE_NOT_DOWNLOADED
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateLikeInNotification(liked: Boolean) {
+        simpleMediaServiceHandler?.like(liked)
+    }
+
+    fun updateLikeStatus(videoId: String, likeStatus: Boolean) {
+        println("Update Like Status $videoId $likeStatus")
+        viewModelScope.launch {
+            if (simpleMediaServiceHandler?.nowPlaying?.first()?.mediaId == videoId) {
+                _liked.value = likeStatus
+                if (likeStatus) {
+                    mainRepository.updateLikeStatus(videoId, 1)
+                } else {
+                    mainRepository.updateLikeStatus(videoId, 0)
+                }
+            }
+        }
+    }
+
+    fun stopPlayer() {
+        onUIEvent(UIEvent.Stop)
+    }
+
+    fun skipSegment(position: Long) {
+        simpleMediaServiceHandler?.skipSegment(position)
+    }
+
+    fun sponsorBlockEnabled() = runBlocking { dataStoreManager.sponsorBlockEnabled.first() }
+    fun sponsorBlockCategories() = runBlocking { dataStoreManager.getSponsorBlockCategories() }
+
+    @UnstableApi
+    fun onUIEvent(uiEvent: UIEvent) = viewModelScope.launch {
+        when (uiEvent) {
+            UIEvent.Backward -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.Backward)
+            UIEvent.Forward -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.Forward)
+            UIEvent.PlayPause -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.PlayPause)
+            UIEvent.Next -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.Next)
+            UIEvent.Previous -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.Previous)
+            UIEvent.Stop -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.Stop)
+            is UIEvent.UpdateProgress -> {
+                _progress.value = uiEvent.newProgress
+                simpleMediaServiceHandler?.onPlayerEvent(
+                    PlayerEvent.UpdateProgress(
+                        uiEvent.newProgress
+                    )
+                )
+            }
+
+            UIEvent.Repeat -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.Repeat)
+            UIEvent.Shuffle -> simpleMediaServiceHandler?.onPlayerEvent(PlayerEvent.Shuffle)
+        }
+    }
+
+    fun checkAuth() {
+        viewModelScope.launch {
+            dataStoreManager.cookie.first().let { cookie ->
+                if (cookie != "") {
+                    Youtube.cookie = cookie
+                }
+
+            }
+            dataStoreManager.musixmatchCookie.first().let { cookie ->
+                if (cookie != "") {
+                    Youtube.musixMatchCookie = cookie
+                }
+
+            }
+        }
+    }
+
+    fun checkAllDownloadingSongs() {
+        viewModelScope.launch {
+            mainRepository.getDownloadingSongs().collect { songs ->
+                songs?.forEach { song ->
+                    mainRepository.updateDownloadState(
+                        song.videoId,
+                        DownloadState.STATE_NOT_DOWNLOADED
+                    )
+                }
+            }
+            mainRepository.getPreparingSongs().collect { songs ->
+                songs.forEach { song ->
+                    mainRepository.updateDownloadState(
+                        song.videoId,
+                        DownloadState.STATE_NOT_DOWNLOADED
+                    )
+                }
+            }
+        }
+    }
+
+    fun checkIsRestoring() {
+        viewModelScope.launch {
+            mainRepository.getDownloadedSongs().first().let { songs ->
+                songs?.forEach { song ->
+                    if (!downloadedCache.keys.contains(song.videoId)) {
+                        mainRepository.updateDownloadState(
+                            song.videoId,
+                            DownloadState.STATE_NOT_DOWNLOADED
+                        )
+                    }
+                }
+            }
+            mainRepository.getAllDownloadedPlaylist().first().let { list ->
+                for (data in list) {
+                    when (data) {
+                        is AlbumEntity -> {
+                            if (data.tracks.isNullOrEmpty() || (!downloadedCache.keys.containsAll(
+                                    data.tracks
+                                ))
+                            ) {
+                                mainRepository.updateAlbumDownloadState(
+                                    data.browseId,
+                                    DownloadState.STATE_NOT_DOWNLOADED
+                                )
+                            }
+                        }
+
+                        is PlaylistEntity -> {
+                            if (data.tracks.isNullOrEmpty() || (!downloadedCache.keys.containsAll(
+                                    data.tracks
+                                ))
+                            ) {
+                                mainRepository.updatePlaylistDownloadState(
+                                    data.id,
+                                    DownloadState.STATE_NOT_DOWNLOADED
+                                )
+                            }
+                        }
+
+                        is LocalPlaylistEntity -> {
+                            if (data.tracks.isNullOrEmpty() || (!downloadedCache.keys.containsAll(
+                                    data.tracks
+                                ))
+                            ) {
+                                mainRepository.updateLocalPlaylistDownloadState(
+                                    DownloadState.STATE_NOT_DOWNLOADED,
+                                    data.id
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun getLocation() {
+        regionCode = runBlocking { dataStoreManager.location.first() }
+        quality = runBlocking { dataStoreManager.quality.first() }
+        language = runBlocking { dataStoreManager.getString(SELECTED_LANGUAGE).first() }
+        from_backup = runBlocking { dataStoreManager.playlistFromSaved.first() }
+        recentPosition = runBlocking { (dataStoreManager.recentPosition.first()) }
+    }
 
     fun resetLyrics() {
         _lyrics.value = (Resource.Error<Lyrics>("reset"))
@@ -448,6 +675,27 @@ class SharedViewModel @Inject constructor(
     fun getString(key: String): String? {
         return runBlocking { dataStoreManager.getString(key).first() }
     }
+
+    fun activityRecreate() {
+        _recreateActivity.value = true
+    }
+
+    fun homeRefresh() {
+        _homeRefresh.value = true
+    }
+
+}
+
+sealed class UIEvent {
+    data object PlayPause : UIEvent()
+    data object Backward : UIEvent()
+    data object Forward : UIEvent()
+    data object Next : UIEvent()
+    data object Previous : UIEvent()
+    data object Stop : UIEvent()
+    data object Shuffle : UIEvent()
+    data object Repeat : UIEvent()
+    data class UpdateProgress(val newProgress: Float) : UIEvent()
 }
 
 enum class LyricsProvider {

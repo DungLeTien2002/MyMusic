@@ -5,6 +5,9 @@ import com.example.mymusic.base.encoder.brotli
 import com.example.mymusic.base.models.Context
 import com.example.mymusic.base.models.YouTubeClient
 import com.example.mymusic.base.models.YouTubeLocale
+import com.example.mymusic.base.models.body.BrowseBody
+import com.example.mymusic.base.models.body.EditPlaylistBody
+import com.example.mymusic.base.models.body.FormData
 import com.example.mymusic.base.models.body.NextBody
 import com.example.mymusic.base.models.body.PlayerBody
 import com.example.mymusic.base.utils.CustomRedirectConfig
@@ -116,6 +119,61 @@ class YtMusic {
             url("https://apic-desktop.musixmatch.com/ws/1.1/")
         }
     }
+
+    suspend fun browse(
+        client: YouTubeClient,
+        browseId: String? = null,
+        params: String? = null,
+        continuation: String? = null,
+        countryCode: String? = null,
+        setLogin: Boolean = false,
+    ) = httpClient.post("browse") {
+        ytClient(client, if (setLogin) true else cookie != "" && cookie != null)
+
+        if (countryCode != null) {
+            setBody(
+                BrowseBody(
+                    context = client.toContext(locale, visitorData),
+                    browseId = browseId,
+                    params = params,
+                    formData = FormData(listOf(countryCode))
+                )
+            )
+        } else {
+            setBody(
+                BrowseBody(
+                    context = client.toContext(locale, visitorData),
+                    browseId = browseId,
+                    params = params
+                )
+            )
+
+        }
+        parameter("alt", "json")
+        if (continuation != null) {
+            parameter("ctoken", continuation)
+            parameter("continuation", continuation)
+            parameter("type", "next")
+        }
+    }
+
+    suspend fun addItemYouTubePlaylist(playlistId: String, videoId: String) =
+        httpClient.post("browse/edit_playlist") {
+            ytClient(YouTubeClient.WEB_REMIX, setLogin = true)
+            setBody(
+                EditPlaylistBody(
+                    context = YouTubeClient.WEB_REMIX.toContext(locale, visitorData),
+                    playlistId = playlistId.removePrefix("VL"),
+                    actions = listOf(
+                        EditPlaylistBody.Action(
+                            playlistName = null,
+                            action = "ACTION_ADD_VIDEO",
+                            addedVideoId = videoId
+                        )
+                    )
+                )
+            )
+        }
 
     fun fromString(value: String?): List<String>? {
         val listType: Type = object : TypeToken<ArrayList<String?>?>() {}.type

@@ -1,8 +1,16 @@
 package com.example.mymusic.base.utils.extension
 
+import android.graphics.Color
+import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.navigation.NavController
 import com.example.mymusic.base.data.db.entities.LyricsEntity
 import com.example.mymusic.base.data.db.entities.SongEntity
 import com.example.mymusic.base.data.models.browse.album.Track
+import com.example.mymusic.base.data.models.home.Content
 import com.example.mymusic.base.data.models.metadata.Line
 import com.example.mymusic.base.data.models.metadata.Lyrics
 import com.example.mymusic.base.data.models.musixmatch.MusixmatchTranslationLyricsResponse
@@ -138,27 +146,34 @@ fun com.maxrave.kotlinytmusicscraper.models.lyrics.Lyrics.toLyrics(): Lyrics {
         )
     }
 }
+
 fun Lyrics.toLyricsEntity(videoId: String): LyricsEntity {
     return LyricsEntity(
         videoId = videoId, error = this.error, lines = this.lines, syncType = this.syncType
     )
 }
+
 fun MusixmatchTranslationLyricsResponse.toLyrics(originalLyrics: Lyrics): Lyrics? {
     if (this.message.body.translations_list.isEmpty()) {
         return null
-    }
-    else {
+    } else {
         val listTranslation = this.message.body.translations_list
         val translation = originalLyrics.copy(
             lines = originalLyrics.lines?.mapIndexed { index, line ->
                 line.copy(
-                    words = if (!line.words.contains("♫")) {listTranslation.find { it.translation.matched_line == line.words || it.translation.subtitle_matched_line == line.words || it.translation.snippet == line.words }?.translation?.description ?: ""} else {line.words}
+                    words = if (!line.words.contains("♫")) {
+                        listTranslation.find { it.translation.matched_line == line.words || it.translation.subtitle_matched_line == line.words || it.translation.snippet == line.words }?.translation?.description
+                            ?: ""
+                    } else {
+                        line.words
+                    }
                 )
             }
         )
         return translation
     }
 }
+
 fun List<String>.connectArtists(): String {
     val stringBuilder = StringBuilder()
 
@@ -172,6 +187,17 @@ fun List<String>.connectArtists(): String {
 
     return stringBuilder.toString()
 }
+
+fun NavController.navigateSafe(resId: Int, bundle: Bundle? = null) {
+    if (currentDestination?.id != resId) {
+        if (bundle != null) {
+            navigate(resId, bundle)
+        } else {
+            navigate(resId)
+        }
+    }
+}
+
 fun List<SongItem>?.toListTrack(): ArrayList<Track> {
     val listTrack = arrayListOf<Track>()
     if (this != null) {
@@ -181,10 +207,11 @@ fun List<SongItem>?.toListTrack(): ArrayList<Track> {
     }
     return listTrack
 }
+
 fun SongItem.toTrack(): Track {
     return Track(
-        album = this.album.let { Album(it?.id ?: "", it?.name ?: "")},
-        artists = this.artists.map { artist -> Artist(id = artist.id ?: "", name = artist.name)  },
+        album = this.album.let { Album(it?.id ?: "", it?.name ?: "") },
+        artists = this.artists.map { artist -> Artist(id = artist.id ?: "", name = artist.name) },
         duration = this.duration.toString(),
         durationSeconds = this.duration,
         isAvailable = false,
@@ -199,4 +226,52 @@ fun SongItem.toTrack(): Track {
         resultType = null,
         year = null
     )
+}
+
+fun Content.toTrack(): Track {
+    return Track(
+        album = album,
+        artists = artists ?: listOf(Artist("", "")),
+        duration = "",
+        durationSeconds = durationSeconds,
+        isAvailable = false,
+        isExplicit = false,
+        likeStatus = "INDIFFERENT",
+        thumbnails = thumbnails,
+        title = title,
+        videoId = videoId!!,
+        videoType = "",
+        category = null,
+        feedbackTokens = null,
+        resultType = null,
+        year = ""
+    )
+}
+
+fun setEnabledAll(v: View, enabled: Boolean) {
+    v.isEnabled = enabled
+    v.isFocusable = enabled
+    if (v is ImageButton) {
+        if (enabled) v.setColorFilter(Color.WHITE) else v.setColorFilter(Color.GRAY)
+    }
+    if (v is TextView) {
+        v.isEnabled = enabled
+    }
+    if (v is ViewGroup) {
+        val vg = v
+        for (i in 0 until vg.childCount) setEnabledAll(vg.getChildAt(i), enabled)
+    }
+}
+
+fun ArrayList<String>.removeConflicts(): ArrayList<String> {
+    val nonConflictingSet = HashSet<String>()
+    val nonConflictingList = ArrayList<String>()
+
+    for (item in this) {
+        if (nonConflictingSet.add(item)) {
+            nonConflictingList.add(item)
+        }
+    }
+
+    return nonConflictingList
 }

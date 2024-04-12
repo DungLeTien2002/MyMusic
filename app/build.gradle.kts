@@ -35,6 +35,10 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -123,9 +127,16 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
+    //Easy Permissions
+    implementation("pub.devrel:easypermissions:3.0.0")
+
     //Custom Activity On Crash
     implementation ("cat.ereza:customactivityoncrash:2.4.0")
     implementation("com.google.code.gson:gson:2.10.1")
+
+    //Insetter
+    implementation("dev.chrisbanes.insetter:insetter:0.6.1")
+    implementation("dev.chrisbanes.insetter:insetter-dbx:0.6.1")
 }
 
 hilt {

@@ -5,6 +5,10 @@ import android.app.Activity.OVERRIDE_TRANSITION_CLOSE
 import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.annotation.IdRes
+import androidx.navigation.NavController
+import androidx.navigation.Navigation
+import androidx.navigation.findNavController
 import com.example.mymusic.R
 
 fun Activity.finishWithSlide() {
@@ -31,3 +35,6 @@ fun ComponentActivity.handleBackPressed(action: () -> Unit) {
         }
     })
 }
+public fun Activity.findNavController(
+    @IdRes viewId: Int
+): NavController = Navigation.findNavController(this, viewId)
