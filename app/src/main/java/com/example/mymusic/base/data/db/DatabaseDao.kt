@@ -4,8 +4,11 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Transaction
+import androidx.sqlite.db.SupportSQLiteQuery
 import com.example.mymusic.base.data.db.entities.AlbumEntity
+import com.example.mymusic.base.data.db.entities.GoogleAccountEntity
 import com.example.mymusic.base.data.db.entities.LocalPlaylistEntity
 import com.example.mymusic.base.data.db.entities.LyricsEntity
 import com.example.mymusic.base.data.db.entities.NewFormatEntity
@@ -15,6 +18,7 @@ import com.example.mymusic.base.data.db.entities.QueueEntity
 import com.example.mymusic.base.data.db.entities.SetVideoIdEntity
 import com.example.mymusic.base.data.db.entities.SongEntity
 import com.example.mymusic.base.data.db.entities.SongInfoEntity
+import com.example.mymusic.base.utils.extension.toSQLiteQuery
 
 import java.time.LocalDateTime
 
@@ -107,6 +111,9 @@ interface DatabaseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPairSongLocalPlaylist(pairSongLocalPlaylist: PairSongLocalPlaylist)
 
+    @Query("SELECT * FROM song ORDER BY inLibrary DESC LIMIT :limit OFFSET :offset")
+    suspend fun getRecentSongs(limit: Int, offset: Int): List<SongEntity>
+
     @Transaction
     suspend fun getAllDownloadedPlaylist(): List<Any> {
         val a = mutableListOf<Any>()
@@ -132,4 +139,22 @@ interface DatabaseDao {
         )
         return sortedList
     }
+    @RawQuery
+    fun raw(supportSQLiteQuery: SupportSQLiteQuery): Int
+
+    fun checkpoint() {
+        raw("pragma wal_checkpoint(full)".toSQLiteQuery())
+    }
+
+    @Query("SELECT * FROM googleaccountentity")
+    suspend fun getAllGoogleAccount(): List<GoogleAccountEntity>?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGoogleAccount(googleAccountEntity: GoogleAccountEntity)
+
+    @Query("UPDATE googleaccountentity SET isUsed = :isUsed WHERE email = :email")
+    suspend fun updateGoogleAccountUsed(isUsed: Boolean, email: String)
+
+    @Query("DELETE FROM googleaccountentity WHERE email = :email")
+    suspend fun deleteGoogleAccount(email: String)
 }

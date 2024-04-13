@@ -1,5 +1,6 @@
 package com.example.mymusic.base.data.db
 
+import com.example.mymusic.base.data.db.entities.GoogleAccountEntity
 import com.example.mymusic.base.data.db.entities.LyricsEntity
 import com.example.mymusic.base.data.db.entities.NewFormatEntity
 import com.example.mymusic.base.data.db.entities.PairSongLocalPlaylist
@@ -48,4 +49,11 @@ class LocalDataSource @Inject constructor(private val databaseDao: DatabaseDao) 
         databaseDao.insertSetVideoId(setVideoIdEntity)
     suspend fun insertPairSongLocalPlaylist(pairSongLocalPlaylist: PairSongLocalPlaylist) =
         databaseDao.insertPairSongLocalPlaylist(pairSongLocalPlaylist)
+    suspend fun getRecentSongs(limit: Int, offset: Int) = databaseDao.getRecentSongs(limit, offset)
+    suspend fun getGoogleAccounts() = databaseDao.getAllGoogleAccount()
+    suspend fun insertGoogleAccount(googleAccountEntity: GoogleAccountEntity) =
+        databaseDao.insertGoogleAccount(googleAccountEntity)
+    suspend fun updateGoogleAccountUsed(email: String, isUsed: Boolean) =
+        databaseDao.updateGoogleAccountUsed(isUsed, email)
+    suspend fun deleteGoogleAccount(email: String) = databaseDao.deleteGoogleAccount(email)
 }

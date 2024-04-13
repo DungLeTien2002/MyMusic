@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.navigation.NavController
+import androidx.sqlite.db.SimpleSQLiteQuery
 import com.example.mymusic.base.data.db.entities.LyricsEntity
 import com.example.mymusic.base.data.db.entities.SongEntity
 import com.example.mymusic.base.data.models.browse.album.Track
@@ -19,7 +20,12 @@ import com.example.mymusic.base.data.models.searchResult.songs.Artist
 import com.example.mymusic.base.models.SongItem
 import com.example.mymusic.base.models.searchResult.song.Thumbnail
 import com.example.mymusic.base.parser.toListThumbnail
+import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 fun parseCookieString(cookie: String): Map<String, String> =
     cookie.split("; ")
@@ -275,3 +281,7 @@ fun ArrayList<String>.removeConflicts(): ArrayList<String> {
 
     return nonConflictingList
 }
+
+operator fun File.div(child: String): File = File(this, child)
+fun InputStream.zipInputStream(): ZipInputStream = ZipInputStream(this)
+fun OutputStream.zipOutputStream(): ZipOutputStream = ZipOutputStream(this)

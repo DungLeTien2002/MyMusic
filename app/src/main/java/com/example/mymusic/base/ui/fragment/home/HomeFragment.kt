@@ -17,7 +17,6 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.fragment.findNavController
@@ -900,6 +899,5 @@ class HomeFragment : Fragment() {
     private fun fetchHomeData() {
         viewModel.getHomeItemList()
     }
-
 
 }

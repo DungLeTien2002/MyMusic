@@ -5,6 +5,7 @@ import com.example.mymusic.base.encoder.brotli
 import com.example.mymusic.base.models.Context
 import com.example.mymusic.base.models.YouTubeClient
 import com.example.mymusic.base.models.YouTubeLocale
+import com.example.mymusic.base.models.body.AccountMenuBody
 import com.example.mymusic.base.models.body.BrowseBody
 import com.example.mymusic.base.models.body.EditPlaylistBody
 import com.example.mymusic.base.models.body.FormData
@@ -73,6 +74,11 @@ class YtMusic {
         set(value) {
             field = value
         }
+
+    suspend fun accountMenu(client: YouTubeClient) = httpClient.post("account/account_menu") {
+        ytClient(client, setLogin = true)
+        setBody(AccountMenuBody(client.toContext(locale, visitorData)))
+    }
 
     @OptIn(ExperimentalSerializationApi::class)
     private fun createMusixmatchClient() = HttpClient(OkHttp) {

@@ -2,4 +2,5 @@
 <resources>
     <dimen name="_18sdp">18.00dp</dimen>
     <dimen name="_10sdp">10.00dp</dimen>
+    <dimen name="_8sdp">8.00dp</dimen>
 </resources>

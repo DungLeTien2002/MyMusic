@@ -5,6 +5,7 @@ plugins {
     id("com.google.devtools.ksp")
     kotlin("plugin.serialization")
     kotlin("kapt")
+    id ("com.mikepenz.aboutlibraries.plugin")
 }
 
 android {
@@ -137,6 +138,19 @@ dependencies {
     //Insetter
     implementation("dev.chrisbanes.insetter:insetter:0.6.1")
     implementation("dev.chrisbanes.insetter:insetter-dbx:0.6.1")
+
+    //Lottie
+    val lottieVersion = "6.3.0"
+    implementation("com.airbnb.android:lottie:$lottieVersion")
+
+    //Paging 3
+    val paging_version= "3.2.1"
+    implementation("androidx.paging:paging-runtime-ktx:$paging_version")
+    implementation("com.google.android.flexbox:flexbox:3.0.0")
+    implementation("com.github.skydoves:balloon:1.6.4")
+
+    val latestAboutLibsRelease = "10.10.0"
+    implementation ("com.mikepenz:aboutlibraries:${latestAboutLibsRelease}")
 }
 
 hilt {

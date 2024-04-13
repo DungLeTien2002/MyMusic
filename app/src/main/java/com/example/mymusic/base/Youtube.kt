@@ -5,6 +5,7 @@ import com.example.mymusic.base.data.models.musixmatch.MusixmatchLyricsResponseB
 import com.example.mymusic.base.data.models.musixmatch.MusixmatchTranslationLyricsResponse
 import com.example.mymusic.base.data.models.musixmatch.SearchMusixmatchResponse
 import com.example.mymusic.base.data.models.musixmatch.UserTokenResponse
+import com.example.mymusic.base.models.AccountInfo
 import com.example.mymusic.base.models.MediaType
 import com.example.mymusic.base.models.PlaylistItem
 import com.example.mymusic.base.models.ReturnYouTubeDislikeResponse
@@ -17,6 +18,7 @@ import com.example.mymusic.base.models.YouTubeClient.Companion.WEB_REMIX
 import com.example.mymusic.base.models.YouTubeLocale
 import com.example.mymusic.base.models.getContinuation
 import com.example.mymusic.base.models.myMusic.GithubResponse
+import com.example.mymusic.base.models.response.AccountMenuResponse
 import com.example.mymusic.base.models.response.AddItemYouTubePlaylistResponse
 import com.example.mymusic.base.models.response.BrowseResponse
 import com.example.mymusic.base.models.response.NextResponse
@@ -32,6 +34,7 @@ import com.maxrave.kotlinytmusicscraper.parser.parseMusixmatchLyrics
 import com.maxrave.kotlinytmusicscraper.parser.parseUnsyncedLyrics
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.utils.EmptyContent.contentType
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
@@ -260,6 +263,15 @@ object Youtube {
                 endpoint = endpoint
             )
         }
+
+    suspend fun accountInfo(): Result<AccountInfo?> = runCatching {
+        ytMusic.accountMenu(WEB_REMIX).apply {
+            this.bodyAsText().let {
+                println(it)
+            }
+        }
+            .body<AccountMenuResponse>().actions[0].openPopupAction.popup.multiPageMenuRenderer.header?.activeAccountHeaderRenderer?.toAccountInfo()
+    }
 }
 
 private fun List<PipedResponse.AudioStream>.toListFormat(): List<PlayerResponse.StreamingData.Format> {

@@ -35,7 +35,7 @@
         <item name="fontFamily">@font/poppins_medium</item>
     </style>
 
-    <style name="ThemeOverlay.SimpMusic.FullscreenContainer" parent="">
+    <style name="ThemeOverlay.MyMusic.FullscreenContainer" parent="">
         <item name="fullscreenBackgroundColor">@color/light_blue_900</item>
         <item name="fullscreenTextColor">@color/light_blue_A400</item>
     </style>

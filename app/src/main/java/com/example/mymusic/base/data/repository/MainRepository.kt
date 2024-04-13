@@ -6,6 +6,7 @@ import com.example.mymusic.base.Youtube
 import com.example.mymusic.base.common.VIDEO_QUALITY
 import com.example.mymusic.base.data.dataStore.DataStoreManager
 import com.example.mymusic.base.data.db.LocalDataSource
+import com.example.mymusic.base.data.db.entities.GoogleAccountEntity
 import com.example.mymusic.base.data.db.entities.LocalPlaylistEntity
 import com.example.mymusic.base.data.db.entities.LyricsEntity
 import com.example.mymusic.base.data.db.entities.NewFormatEntity
@@ -35,6 +36,11 @@ import com.example.mymusic.base.utils.extension.toLyrics
 import com.maxrave.simpmusic.data.model.explore.mood.Genre
 import com.example.mymusic.base.data.models.explore.mood.Mood
 import com.example.mymusic.base.data.models.explore.mood.MoodsMoment
+import com.example.mymusic.base.data.parser.parseGenreObject
+import com.example.mymusic.base.data.parser.parseMoodsMomentObject
+import com.example.mymusic.base.models.AccountInfo
+import com.maxrave.simpmusic.data.model.explore.mood.genre.GenreObject
+import com.maxrave.simpmusic.data.model.explore.mood.moodmoments.MoodsMomentObject
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -64,6 +70,11 @@ class MainRepository @Inject constructor(
         withContext(Dispatchers.IO) { localDataSource.deleteQueue() }
     }
 
+    suspend fun getGoogleAccounts(): Flow<List<GoogleAccountEntity>?> =
+        flow<List<GoogleAccountEntity>?> { emit(localDataSource.getGoogleAccounts()) }.flowOn(
+            Dispatchers.IO
+        )
+
     suspend fun updateLocalPlaylistYouTubePlaylistSyncState(id: Long, syncState: Int) =
         withContext(Dispatchers.IO) {
             localDataSource.updateLocalPlaylistYouTubePlaylistSyncState(id, syncState)
@@ -86,6 +97,63 @@ class MainRepository @Inject constructor(
             }
         }
     }
+
+    suspend fun insertGoogleAccount(googleAccountEntity: GoogleAccountEntity) =
+        withContext(Dispatchers.IO) {
+            localDataSource.insertGoogleAccount(googleAccountEntity)
+        }
+
+    suspend fun updateGoogleAccountUsed(email: String, isUsed: Boolean) =
+        withContext(Dispatchers.IO) { localDataSource.updateGoogleAccountUsed(email, isUsed) }
+
+    suspend fun deleteGoogleAccount(email: String) =
+        withContext(Dispatchers.IO) { localDataSource.deleteGoogleAccount(email) }
+
+    suspend fun getAccountInfo() = flow<AccountInfo?> {
+        Youtube.accountInfo().onSuccess { accountInfo ->
+            emit(accountInfo)
+        }.onFailure {
+            it.printStackTrace()
+            emit(null)
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getMoodData(params: String): Flow<Resource<MoodsMomentObject>> = flow {
+        runCatching {
+            Youtube.customQuery(browseId = "FEmusic_moods_and_genres_category", params = params)
+                .onSuccess { result ->
+                    val data = parseMoodsMomentObject(result)
+                    if (data != null) {
+                        emit(Resource.Success<MoodsMomentObject>(data))
+                    } else {
+                        emit(Resource.Error<MoodsMomentObject>("Error"))
+                    }
+                }
+                .onFailure { e ->
+                    emit(Resource.Error<MoodsMomentObject>(e.message.toString()))
+                }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getGenreData(params: String): Flow<Resource<GenreObject>> = flow {
+        kotlin.runCatching {
+            Youtube.customQuery(browseId = "FEmusic_moods_and_genres_category", params = params)
+                .onSuccess { result ->
+                    val data = parseGenreObject(result)
+                    if (data != null) {
+                        emit(Resource.Success<GenreObject>(data))
+                    } else {
+                        emit(Resource.Error<GenreObject>("Error"))
+                    }
+                }
+                .onFailure { e ->
+                    emit(Resource.Error<GenreObject>(e.message.toString()))
+                }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getRecentSong(limit: Int, offset: Int) =
+        localDataSource.getRecentSongs(limit, offset)
 
     suspend fun insertPairSongLocalPlaylist(pairSongLocalPlaylist: PairSongLocalPlaylist) = withContext(Dispatchers.IO) {
         localDataSource.insertPairSongLocalPlaylist(pairSongLocalPlaylist)
