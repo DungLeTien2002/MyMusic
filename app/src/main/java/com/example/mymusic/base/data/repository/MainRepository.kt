@@ -16,29 +16,35 @@ import com.example.mymusic.base.data.db.entities.SetVideoIdEntity
 import com.example.mymusic.base.data.db.entities.SongEntity
 import com.example.mymusic.base.data.db.entities.SongInfoEntity
 import com.example.mymusic.base.data.models.browse.album.Track
+import com.example.mymusic.base.data.models.browse.playlist.PlaylistBrowse
+import com.example.mymusic.base.data.models.explore.mood.Mood
+import com.example.mymusic.base.data.models.explore.mood.MoodsMoment
 import com.example.mymusic.base.data.models.home.HomeItem
 import com.example.mymusic.base.data.models.home.chart.Chart
 import com.example.mymusic.base.data.models.metadata.Lyrics
 import com.example.mymusic.base.data.models.musixmatch.MusixmatchTranslationLyricsResponse
 import com.example.mymusic.base.data.models.musixmatch.SearchMusixmatchResponse
 import com.example.mymusic.base.data.parser.parseChart
+import com.example.mymusic.base.data.parser.parseGenreObject
+import com.example.mymusic.base.data.parser.parseMoodsMomentObject
 import com.example.mymusic.base.data.parser.parseNewRelease
+import com.example.mymusic.base.data.parser.parsePlaylistData
 import com.example.mymusic.base.data.queue.Queue
+import com.example.mymusic.base.models.AccountInfo
 import com.example.mymusic.base.models.MediaType
+import com.example.mymusic.base.models.MusicShelfRenderer
 import com.example.mymusic.base.models.SongItem
 import com.example.mymusic.base.models.WatchEndpoint
 import com.example.mymusic.base.models.myMusic.GithubResponse
+import com.example.mymusic.base.models.response.spotify.CanvasResponse
+import com.example.mymusic.base.models.youtube.YouTubeInitialPage
 import com.example.mymusic.base.parser.parseMixedContent
 import com.example.mymusic.base.utils.Resource
 import com.example.mymusic.base.utils.extension.bestMatchingIndex
 import com.example.mymusic.base.utils.extension.toListTrack
 import com.example.mymusic.base.utils.extension.toLyrics
+import com.maxrave.kotlinytmusicscraper.models.sponsorblock.SkipSegments
 import com.maxrave.simpmusic.data.model.explore.mood.Genre
-import com.example.mymusic.base.data.models.explore.mood.Mood
-import com.example.mymusic.base.data.models.explore.mood.MoodsMoment
-import com.example.mymusic.base.data.parser.parseGenreObject
-import com.example.mymusic.base.data.parser.parseMoodsMomentObject
-import com.example.mymusic.base.models.AccountInfo
 import com.maxrave.simpmusic.data.model.explore.mood.genre.GenreObject
 import com.maxrave.simpmusic.data.model.explore.mood.moodmoments.MoodsMomentObject
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -53,6 +59,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 @Singleton
 class MainRepository @Inject constructor(
@@ -64,7 +71,7 @@ class MainRepository @Inject constructor(
         withContext(Dispatchers.IO) { localDataSource.insertNewFormat(newFormat) }
 
     suspend fun getSavedQueue(): Flow<List<QueueEntity>?> =
-        flow { emit(localDataSource.getQueue())  }.flowOn(Dispatchers.IO)
+        flow { emit(localDataSource.getQueue()) }.flowOn(Dispatchers.IO)
 
     suspend fun removeQueue() {
         withContext(Dispatchers.IO) { localDataSource.deleteQueue() }
@@ -85,11 +92,15 @@ class MainRepository @Inject constructor(
             Youtube.addPlaylistItem(youtubePlaylistId, videoId).onSuccess {
                 if (it.playlistEditResults.isNotEmpty()) {
                     for (playlistEditResult in it.playlistEditResults) {
-                        insertSetVideoId(SetVideoIdEntity(playlistEditResult.playlistEditVideoAddedResultData.videoId, playlistEditResult.playlistEditVideoAddedResultData.setVideoId))
+                        insertSetVideoId(
+                            SetVideoIdEntity(
+                                playlistEditResult.playlistEditVideoAddedResultData.videoId,
+                                playlistEditResult.playlistEditVideoAddedResultData.setVideoId
+                            )
+                        )
                     }
                     emit(it.status)
-                }
-                else {
+                } else {
                     emit("FAILED")
                 }
             }.onFailure {
@@ -155,9 +166,10 @@ class MainRepository @Inject constructor(
     suspend fun getRecentSong(limit: Int, offset: Int) =
         localDataSource.getRecentSongs(limit, offset)
 
-    suspend fun insertPairSongLocalPlaylist(pairSongLocalPlaylist: PairSongLocalPlaylist) = withContext(Dispatchers.IO) {
-        localDataSource.insertPairSongLocalPlaylist(pairSongLocalPlaylist)
-    }
+    suspend fun insertPairSongLocalPlaylist(pairSongLocalPlaylist: PairSongLocalPlaylist) =
+        withContext(Dispatchers.IO) {
+            localDataSource.insertPairSongLocalPlaylist(pairSongLocalPlaylist)
+        }
 
     suspend fun insertSetVideoId(setVideoId: SetVideoIdEntity) =
         withContext(Dispatchers.IO) { localDataSource.insertSetVideoId(setVideoId) }
@@ -653,4 +665,373 @@ class MainRepository @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
+    suspend fun getDownloadedSongsAsFlow() = localDataSource.getDownloadedSongsAsFlow()
+
+    suspend fun getPlaylistData(playlistId: String): Flow<Resource<PlaylistBrowse>> = flow {
+        runCatching {
+            var id = ""
+            id += if (!playlistId.startsWith("VL")) {
+                "VL$playlistId"
+            } else {
+                playlistId
+            }
+            Log.d("Repository", "playlist id: $id")
+            Youtube.customQuery(browseId = id, setLogin = true).onSuccess { result ->
+                val listContent: ArrayList<MusicShelfRenderer.Content> = arrayListOf()
+                val data: List<MusicShelfRenderer.Content>? =
+                    result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(
+                        0
+                    )?.musicPlaylistShelfRenderer?.contents
+                if (data != null) {
+                    Log.d("Data", "data: $data")
+                    Log.d("Data", "data size: ${data.size}")
+                    listContent.addAll(data)
+                }
+                val header = result.header?.musicDetailHeaderRenderer
+                    ?: result.header?.musicEditablePlaylistDetailHeaderRenderer
+                Log.d("Header", "header: $header")
+                var continueParam =
+                    result.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(
+                        0
+                    )?.musicPlaylistShelfRenderer?.continuations?.get(0)?.nextContinuationData?.continuation
+                var count = 0
+                Log.d("Repository", "playlist data: ${listContent.size}")
+                Log.d("Repository", "continueParam: $continueParam")
+                while (continueParam != null) {
+                    Youtube.customQuery(
+                        browseId = "",
+                        continuation = continueParam,
+                        setLogin = true
+                    ).onSuccess { values ->
+                        Log.d("Continue", "continue: $continueParam")
+                        val dataMore: List<MusicShelfRenderer.Content>? =
+                            values.continuationContents?.musicPlaylistShelfContinuation?.contents
+                        if (dataMore != null) {
+                            listContent.addAll(dataMore)
+                        }
+                        continueParam =
+                            values.continuationContents?.musicPlaylistShelfContinuation?.continuations?.get(
+                                0
+                            )?.nextContinuationData?.continuation
+                        count++
+                    }.onFailure {
+                        Log.e("Continue", "Error: ${it.message}")
+                        continueParam = null
+                        count++
+                    }
+                }
+                Log.d("Repository", "playlist final data: ${listContent.size}")
+                parsePlaylistData(header, listContent, playlistId, context)?.let { playlist ->
+                    emit(Resource.Success<PlaylistBrowse>(playlist))
+                } ?: emit(Resource.Error<PlaylistBrowse>("Error"))
+            }.onFailure { e ->
+                emit(Resource.Error<PlaylistBrowse>(e.message.toString()))
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getCanvas(videoId: String, duration: Int): Flow<CanvasResponse?> = flow {
+        runCatching {
+            getSongById(videoId).first().let { song ->
+                val q = "${song?.title} ${song?.artistName?.firstOrNull() ?: ""}".replace(
+                    Regex("\\((feat\\.|ft.|cùng với|con|mukana|com|avec|合作音乐人: ) "),
+                    " "
+                ).replace(
+                    Regex("( và | & | и | e | und |, |和| dan)"), " "
+                ).replace("  ", " ").replace(Regex("([()])"), "").replace(".", " ")
+                    .replace("  ", " ")
+                var spotifyPersonalToken = ""
+                if (dataStoreManager.spotifyPersonalToken.first()
+                        .isNotEmpty() && dataStoreManager.spotifyPersonalTokenExpires.first() > System.currentTimeMillis() && dataStoreManager.spotifyPersonalTokenExpires.first() != 0L
+                ) {
+                    spotifyPersonalToken = dataStoreManager.spotifyPersonalToken.first()
+                    Log.d("Lyrics", "spotifyPersonalToken: $spotifyPersonalToken")
+                } else if (dataStoreManager.spdc.first().isNotEmpty()) {
+                    Youtube.getPersonalToken(dataStoreManager.spdc.first()).onSuccess {
+                        spotifyPersonalToken = it.accessToken
+                        dataStoreManager.setSpotifyPersonalToken(spotifyPersonalToken)
+                        dataStoreManager.setSpotifyPersonalTokenExpires(it.accessTokenExpirationTimestampMs)
+                        Log.d("Lyrics", "spotifyPersonalToken: $spotifyPersonalToken")
+                    }.onFailure {
+                        it.printStackTrace()
+                        emit(null)
+                    }
+                }
+                if (spotifyPersonalToken.isNotEmpty()) {
+                    var clientToken = dataStoreManager.spotifyClientToken.first()
+                    Log.d("Lyrics", "clientToken: $clientToken")
+                    Youtube.searchSpotifyTrack(q, clientToken).onSuccess { searchResponse ->
+                        val track = if (duration != 0) {
+                            searchResponse.tracks.items.find { abs(((it.duration_ms / 1000) - duration)) < 1 }
+                                ?: searchResponse.tracks.items.firstOrNull()
+                        } else {
+                            searchResponse.tracks.items.firstOrNull()
+                        }
+                        Log.d("Lyrics", "track: $track")
+                        if (track != null) {
+                            Youtube.getSpotifyCanvas(track.id, spotifyPersonalToken).onSuccess {
+                                Log.w("Spotify Canvas", "canvas: $it")
+                                emit(it)
+                            }.onFailure {
+                                it.printStackTrace()
+                                emit(null)
+                            }
+                        } else {
+                            emit(null)
+                        }
+                    }.onFailure { throwable ->
+                        throwable.printStackTrace()
+                        Youtube.getClientToken().onSuccess { tokenResponse ->
+                            clientToken = tokenResponse.accessToken
+                            Log.w("Lyrics", "clientToken: $clientToken")
+                            dataStoreManager.setSpotifyClientToken(clientToken)
+                            Youtube.searchSpotifyTrack(q, clientToken).onSuccess { searchResponse ->
+                                val track = if (duration != 0) {
+                                    searchResponse.tracks.items.find { abs(((it.duration_ms / 1000) - duration)) < 1 }
+                                        ?: searchResponse.tracks.items.firstOrNull()
+                                } else {
+                                    searchResponse.tracks.items.firstOrNull()
+                                }
+                                Log.d("Lyrics", "track: $track")
+                                if (track != null) {
+                                    Youtube.getSpotifyCanvas(track.id, spotifyPersonalToken)
+                                        .onSuccess {
+                                            Log.w("Spotify Canvas", "canvas: $it")
+                                            emit(it)
+                                        }.onFailure {
+                                            it.printStackTrace()
+                                            emit(null)
+                                        }
+                                } else {
+                                    emit(null)
+                                }
+                            }
+                        }.onFailure {
+                            it.printStackTrace()
+                            emit(null)
+                        }
+                    }
+                }
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getContinueTrack(
+        playlistId: String,
+        continuation: String
+    ): Flow<ArrayList<Track>?> = flow {
+        runCatching {
+            Queue.setContinuation(null)
+            Youtube.next(WatchEndpoint(playlistId = playlistId), continuation = continuation)
+                .onSuccess { next ->
+                    val data: ArrayList<SongItem> = arrayListOf()
+                    data.addAll(next.items)
+                    val nextContinuation = next.continuation
+                    if (nextContinuation != null) {
+                        Queue.setContinuation(Pair(playlistId, nextContinuation))
+                    } else {
+                        Queue.setContinuation(null)
+                    }
+                    emit(data.toListTrack())
+                }.onFailure { exception ->
+                    exception.printStackTrace()
+                    Queue.setContinuation(null)
+                    emit(null)
+                }
+        }
+    }
+
+    suspend fun initPlayback(
+        playback: String,
+        atr: String,
+        watchTime: String,
+        cpn: String,
+        playlistId: String?
+    ): Flow<Pair<Int, Float>> = flow {
+        Youtube.initPlayback(playback, atr, watchTime, cpn, playlistId).onSuccess { response ->
+            emit(response)
+        }.onFailure {
+            emit(Pair(0, 0f))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun updateWatchTime(
+        playbackTrackingVideostatsWatchtimeUrl: String,
+        watchTimeList: ArrayList<Float>,
+        cpn: String,
+        playlistId: String?
+    ): Flow<Int> = flow {
+        runCatching {
+            Youtube.updateWatchTime(
+                playbackTrackingVideostatsWatchtimeUrl,
+                watchTimeList,
+                cpn,
+                playlistId
+            ).onSuccess { response ->
+                emit(response)
+            }.onFailure {
+                it.printStackTrace()
+                emit(0)
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun updateWatchTimeFull(
+        watchTime: String,
+        cpn: String,
+        playlistId: String?
+    ): Flow<Int> = flow {
+        runCatching {
+            Youtube.updateWatchTimeFull(watchTime, cpn, playlistId).onSuccess { response ->
+                emit(response)
+            }.onFailure {
+                it.printStackTrace()
+                emit(0)
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getSkipSegments(videoId: String): Flow<List<SkipSegments>?> = flow {
+        Youtube.getSkipSegments(videoId).onSuccess {
+            emit(it)
+        }.onFailure {
+            emit(null)
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getNewFormat(videoId: String): Flow<NewFormatEntity?> =
+        flow { emit(localDataSource.getNewFormat(videoId)) }.flowOn(Dispatchers.Main)
+
+    fun getFullMetadata(videoId: String): Flow<YouTubeInitialPage?> = flow {
+        Log.w("getFullMetadata", "videoId: $videoId")
+        Youtube.getFullMetadata(videoId).onSuccess {
+            emit(it)
+        }.onFailure {
+            Log.e("getFullMetadata", "Error: ${it.message}")
+            emit(null)
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getYouTubeCaption(videoId: String): Flow<Resource<Lyrics>> = flow {
+        runCatching {
+            Youtube.getYouTubeCaption(videoId).onSuccess { lyrics ->
+                Log.w("Lyrics", "lyrics: ${lyrics.toLyrics()}")
+                emit(Resource.Success<Lyrics>(lyrics.toLyrics()))
+            }.onFailure { e ->
+                Log.d("Lyrics", "Error: ${e.message}")
+                emit(Resource.Error<Lyrics>(e.message.toString()))
+            }
+        }
+    }
+
+    suspend fun removeFromYouTubeLiked(mediaId: String?): Flow<Int> = flow {
+        if (mediaId != null) {
+            runCatching {
+                Youtube.removeFromLiked(mediaId).onSuccess {
+                    Log.d("Liked", "Success: $it")
+                    emit(it)
+                }.onFailure {
+                    it.printStackTrace()
+                    emit(0)
+                }
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun getSpotifyLyrics(query: String, duration: Int?): Flow<Resource<Lyrics>> = flow {
+        runCatching {
+            val q =
+                query.replace(
+                    Regex("\\((feat\\.|ft.|cùng với|con|mukana|com|avec|合作音乐人: ) "),
+                    " "
+                ).replace(
+                    Regex("( và | & | и | e | und |, |和| dan)"), " "
+                ).replace("  ", " ").replace(Regex("([()])"), "").replace(".", " ")
+                    .replace("  ", " ")
+            Log.d("Lyrics", "query: $q")
+            var spotifyPersonalToken = ""
+            if (dataStoreManager.spotifyPersonalToken.first()
+                    .isNotEmpty() && dataStoreManager.spotifyPersonalTokenExpires.first() > System.currentTimeMillis() && dataStoreManager.spotifyPersonalTokenExpires.first() != 0L
+            ) {
+                spotifyPersonalToken = dataStoreManager.spotifyPersonalToken.first()
+                Log.d("Lyrics", "spotifyPersonalToken: $spotifyPersonalToken")
+            } else if (dataStoreManager.spdc.first().isNotEmpty()) {
+                Youtube.getPersonalToken(dataStoreManager.spdc.first()).onSuccess {
+                    spotifyPersonalToken = it.accessToken
+                    dataStoreManager.setSpotifyPersonalToken(spotifyPersonalToken)
+                    dataStoreManager.setSpotifyPersonalTokenExpires(it.accessTokenExpirationTimestampMs)
+                    Log.d("Lyrics", "spotifyPersonalToken: $spotifyPersonalToken")
+                }.onFailure {
+                    it.printStackTrace()
+                    emit(Resource.Error<Lyrics>("Not found"))
+                }
+            }
+            if (spotifyPersonalToken.isNotEmpty()) {
+                var clientToken = dataStoreManager.spotifyClientToken.first()
+                Log.d("Lyrics", "clientToken: $clientToken")
+                Youtube.searchSpotifyTrack(q, clientToken).onSuccess { searchResponse ->
+                    val track = if (duration != null && duration != 0) {
+                        searchResponse.tracks.items.find { abs(((it.duration_ms / 1000) - duration)) < 1 }
+                            ?: searchResponse.tracks.items.firstOrNull()
+                    } else {
+                        searchResponse.tracks.items.firstOrNull()
+                    }
+                    Log.d("Lyrics", "track: $track")
+                    if (track != null) {
+                        Youtube.getSpotifyLyrics(track.id, spotifyPersonalToken).onSuccess {
+                            emit(Resource.Success<Lyrics>(it.toLyrics()))
+                        }.onFailure {
+                            it.printStackTrace()
+                            emit(Resource.Error<Lyrics>("Not found"))
+                        }
+                    } else {
+                        emit(Resource.Error<Lyrics>("Not found"))
+                    }
+                }.onFailure { throwable ->
+                    throwable.printStackTrace()
+                    Youtube.getClientToken().onSuccess {
+                        clientToken = it.accessToken
+                        Log.w("Lyrics", "clientToken: $clientToken")
+                        dataStoreManager.setSpotifyClientToken(clientToken)
+                        Youtube.searchSpotifyTrack(q, clientToken).onSuccess { searchResponse ->
+                            val track = if (duration != null && duration != 0) {
+                                searchResponse.tracks.items.find { abs(((it.duration_ms / 1000) - duration)) < 1 }
+                                    ?: searchResponse.tracks.items.firstOrNull()
+                            } else {
+                                searchResponse.tracks.items.firstOrNull()
+                            }
+                            Log.d("Lyrics", "track: $track")
+                            if (track != null) {
+                                Youtube.getSpotifyLyrics(track.id, spotifyPersonalToken).onSuccess {
+                                    emit(Resource.Success<Lyrics>(it.toLyrics()))
+                                }.onFailure {
+                                    it.printStackTrace()
+                                    emit(Resource.Error<Lyrics>("Not found"))
+                                }
+                            } else {
+                                emit(Resource.Error<Lyrics>("Not found"))
+                            }
+                        }
+                    }.onFailure {
+                        it.printStackTrace()
+                        emit(Resource.Error<Lyrics>("Not found"))
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun addToYouTubeLiked(mediaId: String?): Flow<Int> = flow {
+        if (mediaId != null) {
+            runCatching {
+                Youtube.addToLiked(mediaId).onSuccess {
+                    Log.d("Liked", "Success: $it")
+                    emit(it)
+                }.onFailure {
+                    it.printStackTrace()
+                    emit(0)
+                }
+            }
+        }
+    }.flowOn(Dispatchers.IO)
 }

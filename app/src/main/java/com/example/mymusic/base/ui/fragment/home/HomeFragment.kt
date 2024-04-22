@@ -551,6 +551,7 @@ class HomeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        binding.fullLayout.setBackgroundColor(Color.BLACK)
         mAdapter = HomeItemAdapter(
             arrayListOf(),
             requireContext(),
@@ -573,6 +574,9 @@ class HomeFragment : Fragment() {
     }
     private fun initView() {
         val date = Calendar.getInstance().time
+        binding.topAppBar.setTitleTextColor(Color.WHITE)
+        binding.topAppBar.setSubtitleTextColor(Color.WHITE)
+        binding.topAppBarLayout.setBackgroundColor(Color.BLACK)
         val formatter = SimpleDateFormat("HH")
         when (formatter.format(date).toInt()) {
             in 6..12 -> {

@@ -151,6 +151,13 @@ dependencies {
 
     val latestAboutLibsRelease = "10.10.0"
     implementation ("com.mikepenz:aboutlibraries:${latestAboutLibsRelease}")
+
+    val version = "0.3.1"
+    // For parsing HTML
+    implementation("com.mohamedrejeb.ksoup:ksoup-html:$version")
+
+// Only for encoding and decoding HTML entities
+    implementation("com.mohamedrejeb.ksoup:ksoup-entities:0.3.1")
 }
 
 hilt {

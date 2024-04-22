@@ -1,7 +1,10 @@
 package com.example.mymusic.base.utils.extension
 
+import android.content.Context
 import android.graphics.Color
+import android.graphics.Point
 import android.os.Bundle
+import android.text.Html
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
@@ -18,7 +21,10 @@ import com.example.mymusic.base.data.models.musixmatch.MusixmatchTranslationLyri
 import com.example.mymusic.base.data.models.searchResult.songs.Album
 import com.example.mymusic.base.data.models.searchResult.songs.Artist
 import com.example.mymusic.base.models.SongItem
+import com.example.mymusic.base.models.response.spotify.SpotifyLyricsResponse
 import com.example.mymusic.base.models.searchResult.song.Thumbnail
+import com.example.mymusic.base.models.youtube.Transcript
+import com.example.mymusic.base.models.youtube.YouTubeInitialPage
 import com.example.mymusic.base.parser.toListThumbnail
 import java.io.File
 import java.io.InputStream
@@ -34,6 +40,12 @@ fun parseCookieString(cookie: String): Map<String, String> =
             val (key, value) = it.split("=")
             key to value
         }
+
+fun getScreenSize(context: Context): Point {
+    val x: Int = context.resources.displayMetrics.widthPixels
+    val y: Int = context.resources.displayMetrics.heightPixels
+    return Point(x, y)
+}
 
 fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
 fun sha1(str: String): String = MessageDigest.getInstance("SHA-1").digest(str.toByteArray()).toHex()
@@ -281,6 +293,70 @@ fun ArrayList<String>.removeConflicts(): ArrayList<String> {
 
     return nonConflictingList
 }
+
+fun Transcript.toLyrics(): Lyrics {
+    val lines = this.text.map {
+        Line(
+            endTimeMs = "0",
+            startTimeMs = (it.start.toFloat() * 1000).toInt().toString(),
+            syllables = listOf(),
+            words = Html.fromHtml(it.content, Html.FROM_HTML_MODE_COMPACT).toString()
+        )
+    }
+    val sortedLine = lines.sortedBy { it.startTimeMs.toInt() }
+    return Lyrics(
+        error = false,
+        lines = sortedLine,
+        syncType = "LINE_SYNCED"
+    )
+
+}
+fun SpotifyLyricsResponse.toLyrics(): Lyrics {
+    val lines: ArrayList<Line> = arrayListOf()
+    this.lyrics.lines.forEach {
+        lines.add(
+            Line(
+                endTimeMs = it.endTimeMs,
+                startTimeMs = it.startTimeMs,
+                syllables = listOf(),
+                words = it.words
+            )
+        )
+    }
+    return Lyrics(
+        error = false,
+        lines = lines,
+        syncType = this.lyrics.syncType
+    )
+
+}
+fun YouTubeInitialPage.toTrack(): Track {
+    val initialPage = this
+
+    return Track(
+        album = null,
+        artists = listOf(
+            Artist(
+                name = initialPage.videoDetails?.author ?: "",
+                id = initialPage.videoDetails?.channelId
+            )
+        ),
+        duration = initialPage.videoDetails?.lengthSeconds,
+        durationSeconds = initialPage.videoDetails?.lengthSeconds?.toInt() ?: 0,
+        isAvailable = false,
+        isExplicit = false,
+        likeStatus = null,
+        thumbnails = initialPage.videoDetails?.thumbnail?.thumbnails?.toListThumbnail() ?: listOf(),
+        title = initialPage.videoDetails?.title ?: "",
+        videoId = initialPage.videoDetails?.videoId ?: "",
+        videoType = "",
+        category = "",
+        feedbackTokens = null,
+        resultType = "",
+        year = ""
+    )
+}
+
 
 operator fun File.div(child: String): File = File(this, child)
 fun InputStream.zipInputStream(): ZipInputStream = ZipInputStream(this)

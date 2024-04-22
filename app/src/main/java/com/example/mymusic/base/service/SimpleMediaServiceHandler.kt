@@ -23,6 +23,7 @@ import com.example.mymusic.base.data.queue.Queue
 import com.example.mymusic.base.data.repository.MainRepository
 import com.example.mymusic.base.utils.extension.connectArtists
 import com.example.mymusic.base.utils.extension.toListName
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,8 @@ class SimpleMediaServiceHandler(
     var coroutineScope: LifecycleCoroutineScope,
     private val context: Context
 ) : Player.Listener {
+    private val _sleepMinutes = MutableStateFlow<Int>(0)
+    val sleepMinutes = _sleepMinutes.asSharedFlow()
     private var sleepTimerJob: Job? = null
     private var _stateFlow = MutableStateFlow<StateSource>(StateSource.STATE_CREATED)
     val stateFlow = _stateFlow.asStateFlow()
@@ -90,6 +93,61 @@ class SimpleMediaServiceHandler(
     fun like(liked: Boolean) {
         _liked.value = liked
         updateNotification()
+    }
+
+    fun changeAddedState() {
+        added.value = false
+    }
+
+    fun swap(from: Int, to: Int) {
+        if (from < to) {
+            for (i in from until to) {
+                moveItemDown(i)
+            }
+        } else {
+            for (i in from downTo to + 1) {
+                moveItemUp(i)
+            }
+        }
+    }
+
+    @UnstableApi
+    fun moveItemUp(position: Int) {
+        moveMediaItem(position, position - 1)
+        val temp = catalogMetadata[position]
+        catalogMetadata[position] = catalogMetadata[position - 1]
+        catalogMetadata[position - 1] = temp
+        _currentSongIndex.value = currentIndex()
+    }
+
+    @UnstableApi
+    fun moveItemDown(position: Int) {
+        moveMediaItem(position, position + 1)
+        val temp = catalogMetadata[position]
+        catalogMetadata[position] = catalogMetadata[position + 1]
+        catalogMetadata[position + 1] = temp
+        _currentSongIndex.value = currentIndex()
+    }
+
+    fun removeMediaItem(position: Int) {
+        player.removeMediaItem(position)
+        catalogMetadata.removeAt(position)
+        _currentSongIndex.value = currentIndex()
+    }
+
+
+    fun playMediaItemInMediaSource(index: Int) {
+        player.seekTo(index, 0)
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    fun setCurrentSongIndex(index: Int) {
+        _currentSongIndex.value = index
+    }
+
+    fun getProgress(): Long {
+        return player.currentPosition
     }
 
     suspend fun playNext(track: Track) {
@@ -761,6 +819,29 @@ class SimpleMediaServiceHandler(
         catalogMetadata.add(0, it)
         Log.d("MusicSource", "addFirstMetadata: ${it.title}, ${catalogMetadata.size}")
     }
+
+    fun sleepStart(minutes: Int) {
+        _sleepDone.value = false
+        sleepTimerJob?.cancel()
+        sleepTimerJob = coroutineScope.launch(Dispatchers.Main) {
+            _sleepMinutes.value = minutes
+            var count = minutes
+            while (count > 0) {
+                delay(60 * 1000L)
+                count--
+                _sleepMinutes.value = count
+            }
+            player.pause()
+            _sleepMinutes.value = 0
+            _sleepDone.value = true
+        }
+    }
+
+    fun sleepStop() {
+        _sleepDone.value = false
+        sleepTimerJob?.cancel()
+        _sleepMinutes.value = 0
+    }
 }
 
 enum class StateSource {
@@ -797,3 +878,4 @@ sealed class RepeatState {
     data object All : RepeatState()
     data object One : RepeatState()
 }
+

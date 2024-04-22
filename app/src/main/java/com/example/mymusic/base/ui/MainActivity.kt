@@ -223,7 +223,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     }
 
     override fun initData() {
-        if (viewModel.recreatedActivity.value == true) {
+        if (viewModel.recreateActivity.value == true) {
             viewModel.simpleMediaServiceHandler?.coroutineScope = lifecycleScope
             runCollect()
             viewModel.activityRecreateDone()
@@ -405,7 +405,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
 
 
     private fun startMusicService() {
-        if (viewModel.recreatedActivity.value != true) {
+        if (viewModel.recreateActivity.value != true) {
             val intent = Intent(this, SimpleMediaServiceHandler::class.java)
             startService(intent)
             bindService(intent, serviceConnection, BIND_AUTO_CREATE)
@@ -648,6 +648,11 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
     fun hideBottomNav() {
         binding.bottomNavigationView.visibility = View.GONE
         binding.miniPlayer.visibility = View.GONE
+    }
+
+    fun showBottomNav() {
+        binding.bottomNavigationView.visibility = View.VISIBLE
+        binding.miniPlayerContainer.visibility = View.VISIBLE
     }
 
     private fun bindData(it: MediaItem?) {

@@ -3,6 +3,12 @@ package com.example.mymusic.base.common
 import com.example.mymusic.R
 
 object Config {
+    enum class SyncState {
+        LINE_SYNCED,
+        UNSYNCED,
+        NOT_FOUND
+    }
+
     const val RECOVER_TRACK_QUEUE = "RECOVER_TRACK_QUEUE"
     const val SONG_CLICK = "SONG_CLICK"
     const val SELECTED_LANGUAGE = "selected_language"
@@ -12,6 +18,7 @@ object Config {
     const val ALBUM_CLICK = "ALBUM_CLICK"
     const val MINIPLAYER_CLICK = "MINIPLAYER_CLICK"
 }
+
 const val SETTINGS_FILENAME = "settings"
 
 object LYRICS_PROVIDER {
@@ -19,7 +26,8 @@ object LYRICS_PROVIDER {
 }
 
 object LIMIT_CACHE_SIZE {
-    val items: Array<CharSequence> = arrayOf("100MB", "250MB", "500MB", "1GB", "2GB", "5GB", "8GB", "∞")
+    val items: Array<CharSequence> =
+        arrayOf("100MB", "250MB", "500MB", "1GB", "2GB", "5GB", "8GB", "∞")
     val data: Array<Int> = arrayOf(100, 250, 500, 1000, 2000, 5000, 8000, -1)
 }
 

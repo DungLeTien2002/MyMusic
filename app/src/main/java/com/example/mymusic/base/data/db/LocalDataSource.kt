@@ -56,4 +56,6 @@ class LocalDataSource @Inject constructor(private val databaseDao: DatabaseDao) 
     suspend fun updateGoogleAccountUsed(email: String, isUsed: Boolean) =
         databaseDao.updateGoogleAccountUsed(isUsed, email)
     suspend fun deleteGoogleAccount(email: String) = databaseDao.deleteGoogleAccount(email)
+    suspend fun getDownloadedSongsAsFlow() = databaseDao.getDownloadedSongsAsFlow()
+    suspend fun getNewFormat(videoId: String) = databaseDao.getNewFormat(videoId)
 }

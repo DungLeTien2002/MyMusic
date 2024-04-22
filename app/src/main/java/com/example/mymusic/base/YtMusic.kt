@@ -3,6 +3,7 @@ package com.example.mymusic.base
 import com.example.mymusic.base.data.models.musixmatch.SearchMusixmatchResponse
 import com.example.mymusic.base.encoder.brotli
 import com.example.mymusic.base.models.Context
+import com.example.mymusic.base.models.LikeBody
 import com.example.mymusic.base.models.YouTubeClient
 import com.example.mymusic.base.models.YouTubeLocale
 import com.example.mymusic.base.models.body.AccountMenuBody
@@ -11,6 +12,7 @@ import com.example.mymusic.base.models.body.EditPlaylistBody
 import com.example.mymusic.base.models.body.FormData
 import com.example.mymusic.base.models.body.NextBody
 import com.example.mymusic.base.models.body.PlayerBody
+import com.example.mymusic.base.models.body.spotify.CanvasBody
 import com.example.mymusic.base.utils.CustomRedirectConfig
 import com.example.mymusic.base.utils.extension.parseCookieString
 import com.example.mymusic.base.utils.extension.sha1
@@ -25,6 +27,7 @@ import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
@@ -33,14 +36,17 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.Parameters
 import io.ktor.http.contentType
 import io.ktor.http.parameters
 import io.ktor.http.userAgent
 import io.ktor.serialization.kotlinx.KotlinxSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.serialization.kotlinx.protobuf.protobuf
 import io.ktor.serialization.kotlinx.xml.xml
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.protobuf.ProtoBuf
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.serialization.XML
 import java.lang.reflect.Type
@@ -48,6 +54,7 @@ import java.net.Proxy
 import java.util.Locale
 
 class YtMusic {
+    private var spotifyClient = createSpotifyClient()
     private var httpClient = createClient()
     var visitorData: String = "Cgt6SUNYVzB2VkJDbyjGrrSmBg%3D%3D"
     private var musixmatchClient = createMusixmatchClient()
@@ -78,6 +85,54 @@ class YtMusic {
     suspend fun accountMenu(client: YouTubeClient) = httpClient.post("account/account_menu") {
         ytClient(client, setLogin = true)
         setBody(AccountMenuBody(client.toContext(locale, visitorData)))
+    }
+
+    @OptIn(ExperimentalSerializationApi::class)
+    private fun createSpotifyClient() = HttpClient(OkHttp) {
+        expectSuccess = true
+        followRedirects = false
+
+        install(HttpSend) {
+            maxSendCount = 100
+        }
+        install(HttpCookies) {
+            storage = AcceptAllCookiesStorage()
+        }
+        install(CustomRedirectConfig) {
+            checkHttpMethod = false
+            allowHttpsDowngrade = true
+        }
+        install(ContentNegotiation) {
+            register(
+                ContentType.Text.Plain, KotlinxSerializationConverter(
+                    Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                        explicitNulls = false
+                        encodeDefaults = true
+                    }
+                )
+            )
+            json(Json {
+                prettyPrint = true
+                isLenient = true
+                ignoreUnknownKeys = true
+                explicitNulls = false
+                encodeDefaults = true
+            })
+            protobuf(ProtoBuf {
+                encodeDefaults = true
+            })
+        }
+        install(ContentEncoding) {
+            brotli(1.0F)
+            gzip(0.9F)
+            deflate(0.8F)
+        }
+        defaultRequest {
+            url("https://api.spotify.com")
+        }
     }
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -467,5 +522,159 @@ class YtMusic {
     suspend fun pipedStreams(videoId: String, pipedInstance: String) =
         httpClient.get("https://${pipedInstance}/streams/${videoId}") {
             contentType(ContentType.Application.Json)
+        }
+
+
+    suspend fun searchSpotifyTrack(q: String, token: String) =
+        spotifyClient.get("https://api.spotify.com/v1/search") {
+            userAgent(YouTubeClient.WEB.userAgent)
+            contentType(ContentType.Application.Json)
+            header("Authorization", "Bearer $token")
+            parameter("q", q)
+            parameter("type", "track")
+            parameter("limit", "3")
+        }
+
+    suspend fun getSpotifyCanvas(trackId: String, token: String) =
+        spotifyClient.post("https://spclient.wg.spotify.com/canvaz-cache/v0/canvases") {
+            headers {
+                append(HttpHeaders.Accept, "application/protobuf")
+                append(HttpHeaders.ContentType, "application/protobuf")
+                append(
+                    HttpHeaders
+                        .AcceptEncoding, "gzip, deflate, br"
+                )
+                append(HttpHeaders.Authorization, "Bearer $token")
+                append(HttpHeaders.UserAgent, "Spotify/8.5.49 iOS/Version 13.3.1 (Build 17D50)")
+            }
+            setBody(
+                CanvasBody(
+                    tracks = listOf(
+                        CanvasBody.Track(
+                            track_uri = "spotify:track:$trackId"
+                        )
+                    )
+                )
+            )
+        }
+
+    private val spotify_client_id = "721d6f670f074b1497e74fc59125a6f3"
+    private val spotify_client_secret = "efddc083fa974d39bc6369a892c07ced"
+    suspend fun getSpotifyToken() = httpClient.post("https://accounts.spotify.com/api/token") {
+        userAgent(YouTubeClient.WEB.userAgent)
+        contentType(ContentType.Application.FormUrlEncoded)
+        setBody(
+            FormDataContent(
+                Parameters.build {
+                    append("grant_type", "client_credentials")
+                    append("client_id", spotify_client_id)
+                    append("client_secret", spotify_client_secret)
+                }
+            )
+        )
+    }
+
+    suspend fun initPlayback(
+        url: String,
+        cpn: String,
+        customParams: Map<String, String>? = null,
+        playlistId: String?
+    ) = httpClient.get(url) {
+        ytClient(YouTubeClient.ANDROID_MUSIC, true)
+        parameter("ver", "2")
+        parameter("c", "ANDROID_MUSIC")
+        parameter("cpn", cpn)
+        customParams?.forEach { (key, value) ->
+            parameter(key, value)
+        }
+        if (playlistId != null) {
+            parameter("list", playlistId)
+            parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
+        }
+    }
+
+    suspend fun atr(
+        url: String,
+        cpn: String,
+        customParams: Map<String, String>? = null,
+        playlistId: String?
+    ) = httpClient.post(url) {
+        ytClient(YouTubeClient.ANDROID_MUSIC, true)
+        parameter("c", "ANDROID_MUSIC")
+        parameter("cpn", cpn)
+        customParams?.forEach { (key, value) ->
+            parameter(key, value)
+        }
+        if (playlistId != null) {
+            parameter("list", playlistId)
+            parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
+        }
+    }
+
+    suspend fun getSkipSegments(videoId: String) =
+        httpClient.get("https://sponsor.ajay.app/api/skipSegments/") {
+            contentType(ContentType.Application.Json)
+            parameter("videoID", videoId)
+            parameter("category", "sponsor")
+            parameter("category", "selfpromo")
+            parameter("category", "interaction")
+            parameter("category", "intro")
+            parameter("category", "outro")
+            parameter("category", "preview")
+            parameter("category", "music_offtopic")
+            parameter("category", "poi_highlight")
+            parameter("category", "filler")
+            parameter("service", "YouTube")
+        }
+
+    suspend fun scrapeYouTube(
+        videoId: String
+    ) = httpClient.get("https://www.youtube.com/watch?v=$videoId") {
+        headers {
+            append(HttpHeaders.AcceptLanguage, locale.hl)
+            append(HttpHeaders.ContentLanguage, locale.gl)
+        }
+    }
+
+    suspend fun getYouTubeCaption(url: String) = httpClient.get(url) {
+        contentType(ContentType.Text.Xml)
+        headers {
+            append(HttpHeaders.Accept, "text/xml; charset=UTF-8")
+        }
+    }
+
+    suspend fun removeFromLiked(videoId: String) = httpClient.post("like/removelike") {
+        ytClient(YouTubeClient.WEB_REMIX, true)
+        setBody(
+            LikeBody(
+                context = YouTubeClient.WEB_REMIX.toContext(locale, visitorData),
+                target = LikeBody.Target(videoId)
+            )
+        )
+    }
+
+    suspend fun addToLiked(videoId: String) = httpClient.post("like/like") {
+        ytClient(YouTubeClient.WEB_REMIX, true)
+        setBody(
+            LikeBody(
+                context = YouTubeClient.WEB_REMIX.toContext(locale, visitorData),
+                target = LikeBody.Target(videoId)
+            )
+        )
+    }
+
+    suspend fun getSpotifyLyricsToken(spdc: String) =
+        spotifyClient.get("https://open.spotify.com/get_access_token?reason=transport&productType=web_player") {
+            userAgent(YouTubeClient.WEB.userAgent)
+            contentType(ContentType.Application.Json)
+            header("Cookie", "sp_dc=$spdc")
+        }
+
+    suspend fun getSpotifyLyrics(token: String, trackId: String) =
+        spotifyClient.get("https://spclient.wg.spotify.com/color-lyrics/v2/track/$trackId?format=json&vocalRemoval=false&market=from_token") {
+            userAgent(YouTubeClient.WEB.userAgent)
+            contentType(ContentType.Application.Json)
+            header("Authorization", "Bearer $token")
+            header("App-platform", "WebPlayer")
         }
 }
